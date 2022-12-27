@@ -153,10 +153,13 @@ public class DMAPListener implements Runnable, IListener {
 
         try {
             var message = store.getMessage(username, messageId);
+            // the hash will be omitted if it has not been set
+            var hash = message.getHash() != null ? "hash " + message.getHash() : "";
             writer.println("from " + message.getFrom()
                     + "\nto " + message.getTo()
                     + "\nsubject " + message.getSubject()
-                    + "\ndata " + message.getData());
+                    + "\ndata " + message.getData()
+                    + hash);
         } catch (IllegalArgumentException e) {
             writer.println("error " + e.getMessage());
         }
