@@ -19,9 +19,6 @@ public class MessageClient implements IMessageClient, Runnable {
 
     private Shell shell;
 
-    private String mailboxUser;
-    private String mailboxPassword;
-
     private Socket transferSocket;
     private Socket mailboxSocket;
 
@@ -41,9 +38,6 @@ public class MessageClient implements IMessageClient, Runnable {
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
         shell.register(this);
-
-        mailboxUser = config.getString("mailbox.user");
-        mailboxPassword = config.getString("mailbox.password");
 
         mailboxSocket = new Socket(config.getString("mailbox.host"), config.getInt("mailbox.port"));
 
