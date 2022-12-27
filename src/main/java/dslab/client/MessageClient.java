@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.util.Config;
 
@@ -38,9 +39,6 @@ public class MessageClient implements IMessageClient, Runnable {
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
         shell.register(this);
-
-        mailboxSocket = new Socket(config.getString("mailbox.host"), config.getInt("mailbox.port"));
-
     }
 
     @Override
@@ -48,9 +46,10 @@ public class MessageClient implements IMessageClient, Runnable {
         shell.run();
     }
 
+    @Command
     @Override
     public void inbox() {
-        if (mailboxSocket == null) {
+        if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (!connectDMAP()) return;
         }
 
@@ -58,7 +57,7 @@ public class MessageClient implements IMessageClient, Runnable {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
-            writer.write("list");
+            writer.println("list");
             writer.flush();
 
             String response = reader.readLine();
@@ -66,7 +65,7 @@ public class MessageClient implements IMessageClient, Runnable {
                 shell.err().println(response);
             }
 
-            writer.write("list");
+            writer.println("list");
             writer.flush();
             response = reader.readLine();
             while(!response.equals("ok")) {
@@ -81,9 +80,10 @@ public class MessageClient implements IMessageClient, Runnable {
 
     }
 
+    @Command
     @Override
     public void delete(String id)  {
-        if (mailboxSocket == null) {
+        if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (!connectDMAP()) return;
         }
 
@@ -91,7 +91,7 @@ public class MessageClient implements IMessageClient, Runnable {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
-            writer.write("delete " + id);
+            writer.println("delete " + id);
             writer.flush();
 
             String response = reader.readLine();
@@ -104,16 +104,19 @@ public class MessageClient implements IMessageClient, Runnable {
         }
     }
 
+    @Command
     @Override
     public void verify(String id) {
         // TODO
     }
 
+    @Command
     @Override
     public void msg(String to, String subject, String data) {
 
     }
 
+    @Command
     @Override
     public void shutdown() {
 
@@ -140,7 +143,7 @@ public class MessageClient implements IMessageClient, Runnable {
             }
 
 
-            writer.write("login " + config.getString("mailbox.user") + config.getString("mailbox.password"));
+            writer.println("login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password"));
             writer.flush();
             line = reader.readLine();
             if (!line.equals("ok")) {
