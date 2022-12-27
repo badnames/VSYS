@@ -17,12 +17,12 @@ import dslab.util.Config;
 
 public class MessageClient implements IMessageClient, Runnable {
 
-    private Shell shell;
+    private final Shell shell;
+    private final Config config;
 
     private Socket transferSocket;
     private Socket mailboxSocket;
 
-    private Config config;
 
 
     /**
