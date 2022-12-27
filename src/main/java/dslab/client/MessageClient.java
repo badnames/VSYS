@@ -1,12 +1,21 @@
 package dslab.client;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.Key;
+import java.security.KeyStore;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -15,6 +24,11 @@ import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.util.Config;
+import dslab.util.Keys;
+
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 
 public class MessageClient implements IMessageClient, Runnable {
 
@@ -30,9 +44,9 @@ public class MessageClient implements IMessageClient, Runnable {
      * Creates a new client instance.
      *
      * @param componentId the id of the component that corresponds to the Config resource
-     * @param config the component config
-     * @param in the input stream to read console input from
-     * @param out the output stream to write console output to
+     * @param config      the component config
+     * @param in          the input stream to read console input from
+     * @param out         the output stream to write console output to
      */
     public MessageClient(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
         this.config = config;
@@ -113,7 +127,101 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void msg(String to, String subject, String data) {
+        try {
+            if (transferSocket == null || transferSocket.isClosed()) {
+                transferSocket = new Socket(config.getString("transfer.host"), config.getInt("transfer.port"));
+            }
+            var writer = new PrintWriter(transferSocket.getOutputStream());
+            var reader = new BufferedReader(new InputStreamReader(transferSocket.getInputStream()));
 
+            String serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok DMTP2.0")) {
+                transferSocket.close();
+                shell.err().println("error ok DMTP2.0");
+                return;
+            }
+
+            writer.println("begin");
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error begin");
+                return;
+            }
+
+            writer.println("to " + to);
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.startsWith("ok")) {
+                transferSocket.close();
+                shell.err().println("error to");
+                return;
+            }
+
+            writer.println("from " + config.getString("transfer.email"));
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error from");
+                return;
+            }
+
+            writer.println("subject " + subject);
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error subject");
+                return;
+            }
+
+            writer.println("data " + data);
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error data");
+                return;
+            }
+
+            SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(temp);
+
+            String msg = String.join("\n", config.getString("transfer.email"), to, subject, data);
+            byte[] bytes = msg.getBytes();
+            byte[] macResult = mac.doFinal(bytes);
+            byte[] decodedBytes = Base64.getEncoder().encode(macResult);
+
+            String hash = new String(decodedBytes, StandardCharsets.UTF_8);
+
+            writer.println("hash " + hash);
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error hash");
+                return;
+            }
+
+            writer.println("send");
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                transferSocket.close();
+                shell.err().println("error send");
+                return;
+            }
+            transferSocket.close();
+        } catch (IOException e) {
+            shell.err().println("Error transferring message");
+        } catch (NoSuchAlgorithmException e) {
+            shell.err().println("Error transferring message");
+        } catch (InvalidKeyException e) {
+            shell.err().println("Error transferring message");
+        }
     }
 
     @Command
