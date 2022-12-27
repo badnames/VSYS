@@ -22,6 +22,7 @@ import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.util.Config;
 import dslab.util.Keys;
+import dslab.util.Message;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -134,6 +135,63 @@ public class MessageClient implements IMessageClient, Runnable {
     @Override
     public void verify(String id) {
         // TODO
+        if (mailboxSocket == null || mailboxSocket.isClosed()) {
+            if (!connectDMAP()) return;
+        }
+
+        try {
+            var writer = new PrintWriter(mailboxSocket.getOutputStream());
+            var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
+
+            writer.println("show " + id);
+            writer.flush();
+
+            String compHash = null;
+
+            Message message = new Message("", "", "", "", "");
+            String response = reader.readLine();
+            while (!response.equals("ok")) {
+                if (response.startsWith("error")) throw new IOException();
+
+                if (response.startsWith("to")) {
+                    // The first part of the message needs to be removed
+                    message.setTo(response.split(" ")[1]);
+                } else if (response.startsWith("from")) {
+                    // The first part of the message needs to be removed
+                    message.setFrom(response.split(" ")[1]);
+                } else if (response.startsWith("subject")) {
+                    // The first part of the message needs to be removed
+                    message.setSubject(response.split(" ")[1]);
+                } else if (response.startsWith("data")) {
+                    // The first part of the message needs to be removed
+                    message.setData(response.split(" ")[1]);
+                } else if (response.startsWith("hash")) {
+                    // The first part of the message needs to be removed
+                    compHash = response.split(" ")[1];
+                }
+                response = reader.readLine();
+            }
+
+            if (compHash == null) {
+                shell.out().println("HMAC not found, unknown validity!");
+            }
+
+            String hash = calculateBase64HMAC(message.getFrom(), message.getSubject(), message.getData());
+
+            if (hash.equals(compHash)) {
+                shell.out().println("Valid message!");
+            } else {
+                shell.out().println("Invalid message!");
+            }
+
+
+        } catch (IOException e) {
+            shell.err().println("Error verifying message " + id);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (InvalidKeyException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Command
@@ -198,16 +256,7 @@ public class MessageClient implements IMessageClient, Runnable {
                 return;
             }
 
-            SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));
-            Mac mac = Mac.getInstance("HmacSHA256");
-            mac.init(temp);
-
-            String msg = String.join("\n", config.getString("transfer.email"), to, subject, data);
-            byte[] bytes = msg.getBytes();
-            byte[] macResult = mac.doFinal(bytes);
-            byte[] decodedBytes = Base64.getEncoder().encode(macResult);
-
-            String hash = new String(decodedBytes, StandardCharsets.UTF_8);
+            String hash = calculateBase64HMAC(to, subject, data);
 
             writer.println("hash " + hash);
             writer.flush();
@@ -284,6 +333,19 @@ public class MessageClient implements IMessageClient, Runnable {
         }
 
         return true;
+    }
+
+    private String calculateBase64HMAC(String to, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
+        SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(temp);
+
+        String msg = String.join("\n", config.getString("transfer.email"), to, subject, data);
+        byte[] bytes = msg.getBytes();
+        byte[] macResult = mac.doFinal(bytes);
+        byte[] decodedBytes = Base64.getEncoder().encode(macResult);
+
+        return new String(decodedBytes, StandardCharsets.UTF_8);
     }
 
     public static void main(String[] args) throws Exception {
