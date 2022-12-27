@@ -132,6 +132,7 @@ public class DMAPListener implements Runnable, IListener {
         var messages = store.getAllMessagesReadOnly(username);
 
         messages.forEach((id, message) -> writer.println(id + " " + message.getFrom() + " " + message.getSubject()));
+        writer.println("ok");
     }
 
     private void showMessage(String input, String username, MessageStore store) {
