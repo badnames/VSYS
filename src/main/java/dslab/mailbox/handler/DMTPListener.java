@@ -147,7 +147,8 @@ public class DMTPListener implements IListener, IDMTPParserListener {
 
     @Override
     public void onHashCommand(String hash) {
-
+        this.message.setHash(hash);
+        writer.println("ok");
     }
 
     @Override
