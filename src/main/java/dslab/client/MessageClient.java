@@ -227,7 +227,12 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void shutdown() {
+        try {
+            if (transferSocket != null) transferSocket.close();
+            if (mailboxSocket != null) mailboxSocket.close();
+        } catch (IOException ignored) {}
 
+        throw new StopShellException();
     }
 
     private boolean connectDMAP() {
