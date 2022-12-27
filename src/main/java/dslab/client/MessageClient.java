@@ -227,11 +227,7 @@ public class MessageClient implements IMessageClient, Runnable {
                 return;
             }
             transferSocket.close();
-        } catch (IOException e) {
-            shell.err().println("Error transferring message");
-        } catch (NoSuchAlgorithmException e) {
-            shell.err().println("Error transferring message");
-        } catch (InvalidKeyException e) {
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeyException e) {
             shell.err().println("Error transferring message");
         }
     }
