@@ -3,10 +3,17 @@ package dslab.monitoring;
 import java.io.InputStream;
 import java.io.PrintStream;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
+import dslab.monitoring.handler.UsageListener;
 import dslab.util.Config;
 
 public class MonitoringServer implements IMonitoringServer {
+
+    private final Shell shell;
+    private final UsageListener handler;
 
     /**
      * Creates a new server instance.
@@ -17,27 +24,39 @@ public class MonitoringServer implements IMonitoringServer {
      * @param out the output stream to write console output to
      */
     public MonitoringServer(String componentId, Config config, InputStream in, PrintStream out) {
-        // TODO
+        UsageStore.getInstance().init();
+
+        shell = new Shell(in, out);
+        shell.register(this);
+        shell.setPrompt("[Monitoring] >>>");
+
+        handler = new UsageListener(config.getInt("udp.port"));
     }
 
     @Override
+    @Command
     public void run() {
-        // TODO
+        new Thread(handler).start();
+        shell.run();
     }
 
     @Override
+    @Command
     public void addresses() {
-        // TODO
+        shell.out().println(UsageStore.getInstance().addressAccessesToString());
     }
 
     @Override
+    @Command
     public void servers() {
-        // TODO
+        shell.out().println(UsageStore.getInstance().serverAccessesToString());
     }
 
     @Override
+    @Command
     public void shutdown() {
-        // TODO
+        handler.stop();
+        throw new StopShellException();
     }
 
     public static void main(String[] args) throws Exception {

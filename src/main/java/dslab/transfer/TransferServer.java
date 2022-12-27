@@ -1,12 +1,29 @@
 package dslab.transfer;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.InetAddress;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.LinkedBlockingDeque;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
+import dslab.transfer.handler.ClientListenerFactory;
+import dslab.transfer.handler.MailboxListener;
 import dslab.util.Config;
+import dslab.util.Message;
+import dslab.util.handler.DispatchListener;
 
 public class TransferServer implements ITransferServer, Runnable {
+
+    private final DispatchListener dispatcher;
+    private final MailboxListener mailboxListener;
+    private final Shell shell;
+    private final BlockingDeque<Message> commandQueue;
+
 
     /**
      * Creates a new server instance.
@@ -16,18 +33,36 @@ public class TransferServer implements ITransferServer, Runnable {
      * @param in the input stream to read console input from
      * @param out the output stream to write console output to
      */
-    public TransferServer(String componentId, Config config, InputStream in, PrintStream out) {
-        // TODO
+    public TransferServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
+        commandQueue = new LinkedBlockingDeque<>();
+        dispatcher = new DispatchListener(config.getInt("tcp.port"), 8, new ClientListenerFactory(commandQueue));
+
+        var usageServerAddress = new MailboxAddress(config.getString("monitoring.host"), config.getInt("monitoring.port"));
+        mailboxListener = new MailboxListener(commandQueue,
+                usageServerAddress,
+                new MailboxAddress(InetAddress.getLocalHost().getHostAddress(), config.getInt("tcp.port")));
+
+        shell = new Shell(in, out);
+        shell.setPrompt("[Transfer] >>> ");
+        shell.register(this);
     }
 
     @Override
     public void run() {
-        // TODO
+        DomainRegistry.getInstance().init();
+
+        new Thread(mailboxListener).start();
+        new Thread(dispatcher).start();
+        shell.run();
     }
 
     @Override
+    @Command
     public void shutdown() {
-        // TODO
+        dispatcher.stop();
+        mailboxListener.stop();
+        commandQueue.push(new Message(null, null, null, null));
+        throw new StopShellException();
     }
 
     public static void main(String[] args) throws Exception {
