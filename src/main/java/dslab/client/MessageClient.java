@@ -10,14 +10,11 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
-import java.security.Key;
-import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
@@ -71,21 +68,36 @@ public class MessageClient implements IMessageClient, Runnable {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
+            List<String> messages = new ArrayList<>();
+
             writer.println("list");
             writer.flush();
-
             String response = reader.readLine();
-            if (!response.equals("ok")) {
-                shell.err().println(response);
+            while(!response.equals("ok")) {
+                if (response.startsWith("error")) throw new IOException();
+
+                messages.add(response);
+                response = reader.readLine();
             }
 
-            writer.println("list");
-            writer.flush();
-            response = reader.readLine();
-            while(!response.equals("ok")) {
+            var messageIds = messages.stream()
+                    .map(message -> message.split(" ")[0])
+                    .map(String::trim)
+                    .collect(Collectors.toList());
+
+            for (int i = 0; i < messages.size(); i++) {
+                writer.println("show " + messageIds.get(i));
+                writer.flush();
+
                 response = reader.readLine();
-                shell.out().println("response");
-                if (response.startsWith("error")) break;
+                while(!response.equals("ok")) {
+                    if (response.startsWith("error")) throw new IOException();
+
+                    shell.out().println(response);
+                    response = reader.readLine();
+                }
+
+                shell.out().println();
             }
 
         } catch (IOException e) {
