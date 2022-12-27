@@ -121,6 +121,15 @@ public class MailboxListener implements IListener {
             return Optional.of("invalid data");
         }
 
+        if (message.getHash() != null) {
+            writer.println("hash " + message.getHash());
+            writer.flush();
+            serverOutput = reader.readLine();
+            if (!serverOutput.equals("ok")) {
+                return Optional.of("invalid hash");
+            }
+        }
+
         writer.println("send");
         writer.flush();
         serverOutput = reader.readLine();
