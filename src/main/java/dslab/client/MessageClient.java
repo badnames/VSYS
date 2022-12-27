@@ -37,7 +37,6 @@ public class MessageClient implements IMessageClient, Runnable {
     private Socket mailboxSocket;
 
 
-
     /**
      * Creates a new client instance.
      *
@@ -74,7 +73,7 @@ public class MessageClient implements IMessageClient, Runnable {
             writer.println("list");
             writer.flush();
             String response = reader.readLine();
-            while(!response.equals("ok")) {
+            while (!response.equals("ok")) {
                 if (response.startsWith("error")) throw new IOException();
 
                 messages.add(response);
@@ -91,7 +90,7 @@ public class MessageClient implements IMessageClient, Runnable {
                 writer.flush();
 
                 response = reader.readLine();
-                while(!response.equals("ok")) {
+                while (!response.equals("ok")) {
                     if (response.startsWith("error")) throw new IOException();
 
                     shell.out().println(response);
@@ -109,7 +108,7 @@ public class MessageClient implements IMessageClient, Runnable {
 
     @Command
     @Override
-    public void delete(String id)  {
+    public void delete(String id) {
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (!connectDMAP()) return;
         }
@@ -287,7 +286,8 @@ public class MessageClient implements IMessageClient, Runnable {
         try {
             if (transferSocket != null) transferSocket.close();
             if (mailboxSocket != null) mailboxSocket.close();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
 
         throw new StopShellException();
     }
@@ -327,7 +327,8 @@ public class MessageClient implements IMessageClient, Runnable {
             shell.err().println("Could not login to mailbox!");
             try {
                 mailboxSocket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             mailboxSocket = null;
             return false;
         }
