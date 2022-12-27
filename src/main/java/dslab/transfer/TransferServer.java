@@ -61,7 +61,7 @@ public class TransferServer implements ITransferServer, Runnable {
     public void shutdown() {
         dispatcher.stop();
         mailboxListener.stop();
-        commandQueue.push(new Message(null, null, null, null));
+        commandQueue.push(new Message(null, null, null, null,null));
         throw new StopShellException();
     }
 

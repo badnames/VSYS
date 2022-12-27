@@ -44,7 +44,7 @@ public class MailboxListener implements IListener {
             } catch (InterruptedException ignored) {}
 
             // A message with null strings means, that we should stop executing
-            if (message != null && message.equals(new Message(null, null, null, null))) {
+            if (message != null && message.equals(new Message(null, null, null, null,null))) {
                 return;
             }
 
@@ -82,7 +82,7 @@ public class MailboxListener implements IListener {
 
     private Optional<String> sendMessage(PrintWriter writer, BufferedReader reader, Message message) throws IOException {
         String serverOutput = reader.readLine();
-        if (!serverOutput.equals("ok DMTP")) {
+        if (!serverOutput.equals("ok DMTP2.0")) {
             return Optional.of("domain lookup error");
         }
 
@@ -140,7 +140,7 @@ public class MailboxListener implements IListener {
         var message = new Message(originalMessage.getFrom(),
                 "mailer@" + transferServerAddress.getDomain(),
                 "error transmitting message " + originalMessage.getSubject(),
-                "Cause: " + error);
+                "Cause: " + error,null);
 
         try (var socket = new Socket(address.getDomain(), address.getPort());
              var writer = new PrintWriter(socket.getOutputStream());

@@ -9,5 +9,6 @@ public interface IDMTPParserListener {
     void onSubjectCommand(String subject);
     void onFromCommand(String from);
     void onDataCommand(String data);
+    void onHashCommand(String hash);
     boolean onSendCommand();
 }

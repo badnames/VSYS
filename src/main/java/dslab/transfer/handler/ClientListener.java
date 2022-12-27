@@ -44,7 +44,7 @@ public class ClientListener implements IListener, IDMTPParserListener {
 
     @Override
     public void run() {
-        writer.println("ok DMTP");
+        writer.println("ok DMTP2.0");
         writer.flush();
 
         while(!socket.isClosed()) {
@@ -79,7 +79,7 @@ public class ClientListener implements IListener, IDMTPParserListener {
 
     @Override
     public void onBeginCommand() {
-        message = new Message("", "", "", "");
+        message = new Message("", "", "", "","");
         messageDestinations = new LinkedList<>();
         writer.println("ok");
     }
@@ -134,6 +134,12 @@ public class ClientListener implements IListener, IDMTPParserListener {
     @Override
     public void onDataCommand(String data) {
         message.setData(data);
+        writer.println("ok");
+    }
+
+    @Override
+    public void onHashCommand(String hash) {
+        message.setHash(hash);
         writer.println("ok");
     }
 

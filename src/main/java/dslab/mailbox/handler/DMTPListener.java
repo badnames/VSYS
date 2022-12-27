@@ -23,7 +23,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
     private BufferedReader reader;
     private PrintWriter writer;
 
-    private Message message = new Message("", "", "", "");
+    private Message message = new Message("", "", "", "","");
     private List<String> recipients = new LinkedList<>();
 
 
@@ -42,7 +42,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
 
     @Override
     public void run() {
-        writer.println("ok DMTP");
+        writer.println("ok DMTP2.0");
         writer.flush();
 
         while(!socket.isClosed()) {
@@ -76,7 +76,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
     @Override
     public void onBeginCommand() {
         writer.println("ok");
-        message = new Message("", "", "", "");
+        message = new Message("", "", "", "","");
         recipients = new LinkedList<>();
     }
 
@@ -143,6 +143,11 @@ public class DMTPListener implements IListener, IDMTPParserListener {
     public void onDataCommand(String data) {
         this.message.setData(data);
         writer.println("ok");
+    }
+
+    @Override
+    public void onHashCommand(String hash) {
+
     }
 
     @Override
