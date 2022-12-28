@@ -36,6 +36,8 @@ public class MessageClient implements IMessageClient, Runnable {
     private Socket transferSocket;
     private Socket mailboxSocket;
 
+    private boolean encrypted;
+
 
     /**
      * Creates a new client instance.
@@ -50,6 +52,7 @@ public class MessageClient implements IMessageClient, Runnable {
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
         shell.register(this);
+        encrypted = false;
     }
 
     @Override
@@ -292,6 +295,43 @@ public class MessageClient implements IMessageClient, Runnable {
         throw new StopShellException();
     }
 
+    @Command
+    public void startSecure() throws IOException {
+        var writer = new PrintWriter(mailboxSocket.getOutputStream());
+        var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
+
+        String serverOutput;
+        //TODO SEND MESSAGE 1
+        writer.println("startsecure");
+        writer.flush();
+
+        //TODO SEND MESSAGE 2
+        serverOutput = reader.readLine();
+        if (!serverOutput.startsWith("ok") || !(serverOutput.chars().filter(ch -> ch == ' ').count() == 1)) {
+            mailboxSocket.close();
+            shell.err().println("error begin");
+            return;
+        }
+
+        //TODO SEND MESSAGE 3
+        writer.println("MESSAGE 3");
+        writer.flush();
+
+        //TODO SEND MESSAGE 4
+        serverOutput = reader.readLine();
+        if (!serverOutput.startsWith("ok") || !(serverOutput.chars().filter(ch -> ch == ' ').count() == 1)) {
+            mailboxSocket.close();
+            shell.err().println("error begin");
+            return;
+        }
+
+        //TODO SEND MESSAGE 5
+        writer.println("MESSAGE 5");
+        writer.flush();
+
+        encrypted = true;
+    }
+
     private boolean connectDMAP() {
         try {
             mailboxSocket = new Socket(config.getString("mailbox.host"), config.getInt("mailbox.port"));
@@ -335,6 +375,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
         return true;
     }
+
+
 
     private String calculateBase64HMAC(String to, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
         SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));

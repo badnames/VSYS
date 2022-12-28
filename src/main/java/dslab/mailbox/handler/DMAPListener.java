@@ -68,7 +68,12 @@ public class DMAPListener implements Runnable, IListener {
                             || input.startsWith("delete")
                             || input.equals("logout")) {
                         writer.println("error not logged in");
-                    } else {
+                    } else if(input.equals("startsecure")) {
+                        writer.println("ok " + "COMPID TODO");
+                        // TODO SEND MESSAGE 2
+                        state = DMAPState.AUTHENTICATING;
+                    }
+                    else {
                         writer.println("error protocol error");
                     }
 
@@ -88,7 +93,19 @@ public class DMAPListener implements Runnable, IListener {
                         username = null;
                         state = DMAPState.WAITING;
                         writer.println("ok");
+                    }else if(input.equals("startsecure")) {
+                        writer.println("ok " + "COMPID TODO");
+                        // TODO SEND MESSAGE 2
+                        state = DMAPState.AUTHENTICATING;
                     }
+                    break;
+                case AUTHENTICATING:
+                    if(input.startsWith("ok") && input.chars().filter(ch -> ch == ' ').count() == 3)
+                    {
+                        //TODO SEND MESSAGE 4
+                    }
+
+
                     break;
             }
 
