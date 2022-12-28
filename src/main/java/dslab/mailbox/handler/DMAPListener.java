@@ -15,6 +15,8 @@ public class DMAPListener implements Runnable, IListener {
     private BufferedReader reader;
     private PrintWriter writer;
 
+    private DMAPState state = DMAPState.WAITING;
+
     public DMAPListener(Socket socket) {
         this.socket = socket;
         try {
@@ -30,7 +32,6 @@ public class DMAPListener implements Runnable, IListener {
         writer.println("ok DMAP");
         writer.flush();
 
-        DMAPState state = DMAPState.WAITING;
         MessageStore store = MessageStore.getInstance();
         String username = null;
 
@@ -61,21 +62,7 @@ public class DMAPListener implements Runnable, IListener {
 
             switch (state) {
                 case WAITING:
-                    if (input.startsWith("login")) {
-                        username = parseLogin(input, store);
-                    } else if (input.equals("list")
-                            || input.startsWith("show")
-                            || input.startsWith("delete")
-                            || input.equals("logout")) {
-                        writer.println("error not logged in");
-                    } else if(input.equals("startsecure")) {
-                        writer.println("ok " + "COMPID TODO");
-                        // TODO SEND MESSAGE 2
-                        state = DMAPState.AUTHENTICATING;
-                    }
-                    else {
-                        writer.println("error protocol error");
-                    }
+                    username = parseWaitingState(input, store);
 
                     if (username != null) {
                         state = DMAPState.LOGGED_IN;
@@ -83,29 +70,34 @@ public class DMAPListener implements Runnable, IListener {
                     break;
 
                 case LOGGED_IN:
-                    if (input.equals("list")) {
-                        listMessages(username, store);
-                    } else if (input.startsWith("show")) {
-                        showMessage(input, username, store);
-                    } else if (input.startsWith("delete")) {
-                        deleteMessage(input, username, store);
-                    } else if (input.equals("logout")) {
+                    parseLoggedInState(input, username, store);
+
+                    if (state == DMAPState.WAITING) {
                         username = null;
-                        state = DMAPState.WAITING;
-                        writer.println("ok");
-                    }else if(input.equals("startsecure")) {
-                        writer.println("ok " + "COMPID TODO");
-                        // TODO SEND MESSAGE 2
-                        state = DMAPState.AUTHENTICATING;
                     }
                     break;
                 case AUTHENTICATING:
-                    if(input.startsWith("ok") && input.chars().filter(ch -> ch == ' ').count() == 3)
-                    {
+                    if(input.startsWith("ok") && input.chars().filter(ch -> ch == ' ').count() == 3) {
                         //TODO SEND MESSAGE 4
                     }
+                    break;
 
+                case AUTHENTICATED_WAITING:
+                    //TODO: decrypt message
+                    username = parseWaitingState(input, store);
 
+                    if (username != null) {
+                        state = DMAPState.AUTHENTICATED_LOGGED_IN;
+                    }
+                    break;
+
+                case AUTHENTICATED_LOGGED_IN:
+                    //TODO: decrypt message
+                    parseLoggedInState(input, username, store);
+
+                    if (state == DMAPState.AUTHENTICATED_WAITING) {
+                        username = null;
+                    }
                     break;
             }
 
@@ -119,6 +111,62 @@ public class DMAPListener implements Runnable, IListener {
             this.socket.close();
         } catch (IOException e) {
             System.err.println("Could not close socket on exit!");
+        }
+    }
+
+    private String parseWaitingState(String input, MessageStore store) {
+        String username;
+
+        if (input.startsWith("login")) {
+            return parseLogin(input, store);
+        }
+
+        if (input.equals("list")
+                || input.startsWith("show")
+                || input.startsWith("delete")
+                || input.equals("logout")) {
+            writer.println("error not logged in");
+            return null;
+        }
+
+        if (input.equals("startsecure")) {
+            if (state == DMAPState.AUTHENTICATED_WAITING) {
+                writer.println("error already authenticated");
+                return null;
+            }
+
+            writer.println("ok " + "COMPID TODO");
+            // TODO SEND MESSAGE 2
+            state = DMAPState.AUTHENTICATING;
+            return null;
+        }
+
+        writer.println("error protocol error");
+        return null;
+    }
+
+    void parseLoggedInState(String input, String username, MessageStore store) {
+        if (input.equals("list")) {
+            listMessages(username, store);
+        }
+
+        if (input.startsWith("show")) {
+            showMessage(input, username, store);
+        }
+
+        if (input.startsWith("delete")) {
+            deleteMessage(input, username, store);
+        }
+
+        if (input.equals("logout")) {
+            state = DMAPState.WAITING;
+            writer.println("ok");
+        }
+
+        if(input.equals("startsecure")) {
+            writer.println("ok " + "COMPID TODO");
+            // TODO SEND MESSAGE 2
+            state = DMAPState.AUTHENTICATING;
         }
     }
 
