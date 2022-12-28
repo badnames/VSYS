@@ -39,7 +39,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
         String serverDomain = config.getString("domain");
 
-        dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory());
+        dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory(componentId));
         dmtpDispatcher = new DispatchListener(config.getInt("dmtp.tcp.port"), 4, new DMTPListenerFactory(serverDomain));
 
         shell = new Shell(in, out);

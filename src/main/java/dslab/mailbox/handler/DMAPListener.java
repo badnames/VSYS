@@ -1,24 +1,46 @@
 package dslab.mailbox.handler;
 
 import dslab.mailbox.MessageStore;
+import dslab.util.AESParameters;
+import dslab.util.Base64AES;
 import dslab.util.DMAPState;
 import dslab.util.handler.IListener;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.util.Base64;
+import java.util.Optional;
 
 public class DMAPListener implements Runnable, IListener {
     private final Socket socket;
+    private final String componentId;
+    private final PrivateKey rsaPrivateKey;
     private BufferedReader reader;
     private PrintWriter writer;
 
     private DMAPState state = DMAPState.WAITING;
+    private String username = null;
 
-    public DMAPListener(Socket socket) {
+    public DMAPListener(Socket socket, String componentId, PrivateKey rsaPrivateKey) {
         this.socket = socket;
+        this.componentId = componentId;
+        this.rsaPrivateKey = rsaPrivateKey;
         try {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new PrintWriter(socket.getOutputStream());
@@ -33,7 +55,8 @@ public class DMAPListener implements Runnable, IListener {
         writer.flush();
 
         MessageStore store = MessageStore.getInstance();
-        String username = null;
+
+        AESParameters aesParameters = null;
 
         while(!socket.isClosed()) {
             String input;
@@ -60,40 +83,104 @@ public class DMAPListener implements Runnable, IListener {
                 return;
             }
 
+            String response;
+            Optional<String> decryptedInputOptional;
+            Optional<String> encryptedOutputOptional;
+
             switch (state) {
                 case WAITING:
-                    username = parseWaitingState(input, store);
+                    response = parseWaitingState(input, store);
 
+                    writer.println(response);
                     if (username != null) {
                         state = DMAPState.LOGGED_IN;
                     }
                     break;
 
                 case LOGGED_IN:
-                    parseLoggedInState(input, username, store);
+                    response = parseLoggedInState(input, username, store);
 
+                    writer.println(response);
                     if (state == DMAPState.WAITING) {
                         username = null;
                     }
                     break;
-                case AUTHENTICATING:
-                    if(input.startsWith("ok") && input.chars().filter(ch -> ch == ' ').count() == 3) {
-                        //TODO SEND MESSAGE 4
-                    }
+
+                case AUTHENTICATING_WAITING:
+                    try {
+                        aesParameters = parseAuthenticatingState(input, rsaPrivateKey);
+                    } catch (IOException ignored) {}
+                    state = DMAPState.AUTHENTICATED_WAITING;
+                    break;
+
+                case AUTHENTICATING_LOGGED_IN:
+                    try {
+                        aesParameters = parseAuthenticatingState(input, rsaPrivateKey);
+                    } catch (IOException ignored) {}
+                    state = DMAPState.AUTHENTICATED_LOGGED_IN;
                     break;
 
                 case AUTHENTICATED_WAITING:
-                    //TODO: decrypt message
-                    username = parseWaitingState(input, store);
+                    if (aesParameters == null) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    decryptedInputOptional = Base64AES.decrypt(input, aesParameters);
+                    if (decryptedInputOptional.isEmpty()) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    input = decryptedInputOptional.get();
+                    response = parseWaitingState(input, store);
 
                     if (username != null) {
                         state = DMAPState.AUTHENTICATED_LOGGED_IN;
                     }
+
+                    encryptedOutputOptional = Base64AES.encrypt(response, aesParameters);
+                    if (encryptedOutputOptional.isEmpty()) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    writer.println(response);
                     break;
 
                 case AUTHENTICATED_LOGGED_IN:
-                    //TODO: decrypt message
-                    parseLoggedInState(input, username, store);
+                    if (aesParameters == null) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    decryptedInputOptional = Base64AES.decrypt(input, aesParameters);
+                    if (decryptedInputOptional.isEmpty()) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    response = parseLoggedInState(input, username, store);
+
+                    encryptedOutputOptional = Base64AES.encrypt(response, aesParameters);
+                    if (encryptedOutputOptional.isEmpty()) {
+                        try {
+                            socket.close();
+                        } catch (IOException ignored) {}
+                        continue;
+                    }
+
+                    writer.println(response);
 
                     if (state == DMAPState.AUTHENTICATED_WAITING) {
                         username = null;
@@ -115,8 +202,6 @@ public class DMAPListener implements Runnable, IListener {
     }
 
     private String parseWaitingState(String input, MessageStore store) {
-        String username;
-
         if (input.startsWith("login")) {
             return parseLogin(input, store);
         }
@@ -125,122 +210,175 @@ public class DMAPListener implements Runnable, IListener {
                 || input.startsWith("show")
                 || input.startsWith("delete")
                 || input.equals("logout")) {
-            writer.println("error not logged in");
-            return null;
+            return "error not logged in";
         }
 
         if (input.equals("startsecure")) {
             if (state == DMAPState.AUTHENTICATED_WAITING) {
-                writer.println("error already authenticated");
-                return null;
+                return "error already authenticated";
             }
 
-            writer.println("ok " + "COMPID TODO");
-            // TODO SEND MESSAGE 2
-            state = DMAPState.AUTHENTICATING;
-            return null;
+            state = DMAPState.AUTHENTICATING_WAITING;
+            return "ok " + componentId;
         }
 
-        writer.println("error protocol error");
-        return null;
+        return "error protocol error";
     }
 
-    void parseLoggedInState(String input, String username, MessageStore store) {
+    private String parseLoggedInState(String input, String username, MessageStore store) {
         if (input.equals("list")) {
-            listMessages(username, store);
+            return listMessages(username, store);
         }
 
         if (input.startsWith("show")) {
-            showMessage(input, username, store);
+            return showMessage(input, username, store);
         }
 
         if (input.startsWith("delete")) {
-            deleteMessage(input, username, store);
+            return deleteMessage(input, username, store);
         }
 
         if (input.equals("logout")) {
             state = DMAPState.WAITING;
-            writer.println("ok");
+            return "ok";
         }
 
         if(input.equals("startsecure")) {
-            writer.println("ok " + "COMPID TODO");
-            // TODO SEND MESSAGE 2
-            state = DMAPState.AUTHENTICATING;
+            if (state == DMAPState.AUTHENTICATED_WAITING) {
+                return "error already authenticated";
+            }
+
+            state = DMAPState.AUTHENTICATING_LOGGED_IN;
+
+            return "ok " + componentId;
         }
+
+        return "error unknown command";
+    }
+
+    private AESParameters parseAuthenticatingState(String input, PrivateKey privateKey) throws IOException {
+        if (!input.startsWith("ok")) {
+            socket.close();
+            return null;
+        }
+
+        byte[] inputDecoded = Base64.getDecoder().decode(input);
+        String decryptedInput;
+
+        try {
+            Cipher decryptCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+            decryptCipher.init(Cipher.DECRYPT_MODE, privateKey);
+
+            byte[] inputDecrypted = decryptCipher.doFinal(inputDecoded);
+            decryptedInput = new String(inputDecrypted, StandardCharsets.UTF_8);
+        } catch (NoSuchAlgorithmException
+                 | NoSuchPaddingException
+                 | InvalidKeyException
+                 | IllegalBlockSizeException
+                 | BadPaddingException e) {
+            socket.close();
+            return null;
+        }
+
+        if (!decryptedInput.startsWith("ok")) {
+            socket.close();
+            return null;
+        }
+
+        var parts = decryptedInput.split(" ");
+        String challenge = parts[1];
+        String secretKey = parts[2];
+        String initializationVector = parts[3];
+
+        writer.println("ok " + challenge);
+        writer.flush();
+
+        String response = reader.readLine();
+        if (!response.equals("ok")) {
+            socket.close();
+            return null;
+        }
+
+        byte[] secretKeyDecoded = Base64.getDecoder().decode(secretKey);
+        byte[] initializationVectorDecoded = Base64.getDecoder().decode(initializationVector);
+
+        SecretKey aesKey = new SecretKeySpec(secretKeyDecoded, "AES");
+        IvParameterSpec aesInitializationVector = new IvParameterSpec(initializationVectorDecoded);
+
+        return new AESParameters(aesKey, aesInitializationVector);
     }
 
     private String parseLogin(String input, MessageStore store) {
         String[] parts = input.split(" ");
 
         if (parts.length != 3) {
-            writer.println("error protocol error");
-            return null;
+            return "error protocol error";
         }
 
         if (!store.hasUser(parts[1])) {
-            writer.println("error unknown user");
-            return null;
+            return "error unknown user";
         }
 
         if (!store.isPasswordCorrect(parts[1], parts[2])) {
-            writer.println("error wrong password");
-            return null;
+            return "error wrong password";
         }
 
-        writer.println("ok");
-
-        return parts[1];
+        username =  parts[1];
+        return "ok";
     }
 
-    private void listMessages(String username, MessageStore store) {
+    private String listMessages(String username, MessageStore store) {
         var messages = store.getAllMessagesReadOnly(username);
 
-        messages.forEach((id, message) -> writer.println(id + " " + message.getFrom() + " " + message.getSubject()));
-        writer.println("ok");
+        StringBuilder response = new StringBuilder();
+        messages.forEach((id, message) -> response.append(id).append(" ").append(message.getFrom()).append(" ").append(message.getSubject()).append("\n"));
+        response.append("ok");
+
+        return response.toString();
     }
 
-    private void showMessage(String input, String username, MessageStore store) {
+    private String showMessage(String input, String username, MessageStore store) {
         var parts = input.split(" ");
         int messageId;
 
         try {
             messageId = Integer.parseInt(parts[1]);
         } catch (NumberFormatException e) {
-            writer.println("error number expected");
-            return;
+            return "error number expected";
         }
 
         if (messageId < 0) {
-            writer.println("error invalid id");
-            return;
+            return "error invalid id";
         }
 
+        StringBuilder response = new StringBuilder();
         try {
             var message = store.getMessage(username, messageId);
             // the hash will be omitted if it has not been set
             var hash = message.getHash() != null ? "\nhash " + message.getHash() : "";
-            writer.println("from " + message.getFrom()
+            response.append("from " + message.getFrom()
                     + "\nto " + message.getTo()
                     + "\nsubject " + message.getSubject()
                     + "\ndata " + message.getData()
                     + hash);
         } catch (IllegalArgumentException e) {
-            writer.println("error " + e.getMessage());
+            return "error " + e.getMessage();
         }
 
-        writer.println("ok");
+        response.append("\nok");
+
+        return response.toString();
     }
 
-    private void deleteMessage(String input, String username, MessageStore store) {
+    private String deleteMessage(String input, String username, MessageStore store) {
         var parts = input.split(" ");
         var messageId = Integer.parseInt(parts[1]);
 
         try {
             store.deleteMessage(username, messageId);
-            writer.println("ok");
+            return "ok";
         } catch (IllegalArgumentException e) {
-            writer.println("error " + e.getMessage());
+            return "error " + e.getMessage();
         }
     }
 }
