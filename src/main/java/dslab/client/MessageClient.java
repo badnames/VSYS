@@ -154,19 +154,19 @@ public class MessageClient implements IMessageClient, Runnable {
 
                 if (response.startsWith("to")) {
                     // The first part of the message needs to be removed
-                    message.setTo(response.split(" ")[1]);
+                    message.setTo(response.substring(3));
                 } else if (response.startsWith("from")) {
                     // The first part of the message needs to be removed
-                    message.setFrom(response.split(" ")[1]);
+                    message.setFrom(response.substring(5));
                 } else if (response.startsWith("subject")) {
                     // The first part of the message needs to be removed
-                    message.setSubject(response.split(" ")[1]);
+                    message.setSubject(response.substring(8));
                 } else if (response.startsWith("data")) {
                     // The first part of the message needs to be removed
-                    message.setData(response.split(" ")[1]);
+                    message.setData(response.substring(5));
                 } else if (response.startsWith("hash")) {
                     // The first part of the message needs to be removed
-                    compHash = response.split(" ")[1];
+                    compHash = response.substring(5);
                 }
                 response = reader.readLine();
             }
