@@ -9,36 +9,39 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.Optional;
 
 public class Base64AES {
-    public static String encrypt(String input, AESParameters parameters) throws NoSuchPaddingException,
-            NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException,
-            InvalidKeyException,
-            IllegalBlockSizeException,
-            BadPaddingException {
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
-        cipher.init(Cipher.ENCRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
+    public static Optional<String> encrypt(String input, AESParameters parameters)  {
+        try {
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
 
-        byte[] decodedInput = Base64.getDecoder().decode(input);
+            cipher.init(Cipher.ENCRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
 
-        byte[] plainText = cipher.doFinal(decodedInput);
-        return new String(plainText, StandardCharsets.UTF_8);
+            byte[] decodedInput = Base64.getDecoder().decode(input);
+
+            byte[] plainText = cipher.doFinal(decodedInput);
+            return Optional.of(new String(plainText, StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
+                 IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
+            return Optional.empty();
+        }
     }
 
-    public static String decrypt(String input, AESParameters parameters) throws NoSuchPaddingException,
-            NoSuchAlgorithmException,
-            InvalidAlgorithmParameterException,
-            InvalidKeyException,
-            IllegalBlockSizeException,
-            BadPaddingException {
-        Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
-        cipher.init(Cipher.DECRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
+    public static Optional<String> decrypt(String input, AESParameters parameters)  {
+        try {
+            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
 
-        byte[] decodedInput = Base64.getDecoder().decode(input);
+            cipher.init(Cipher.DECRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
 
-        byte[] cipherText = cipher.doFinal(decodedInput);
-        return Base64.getEncoder().encodeToString(cipherText);
+            byte[] decodedInput = Base64.getDecoder().decode(input);
+
+            byte[] cipherText = cipher.doFinal(decodedInput);
+            return Optional.of(Base64.getEncoder().encodeToString(cipherText));
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
+                 IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
+            return Optional.empty();
+        }
     }
 
 }
