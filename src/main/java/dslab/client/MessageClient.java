@@ -2,6 +2,7 @@ package dslab.client;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -10,7 +11,15 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -24,7 +33,11 @@ import dslab.util.Config;
 import dslab.util.Keys;
 import dslab.util.Message;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -296,16 +309,14 @@ public class MessageClient implements IMessageClient, Runnable {
     }
 
     @Command
-    public void startSecure() throws IOException {
+    public void startSecure() throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidKeyException {
         var writer = new PrintWriter(mailboxSocket.getOutputStream());
         var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
         String serverOutput;
-        //TODO SEND MESSAGE 1
         writer.println("startsecure");
         writer.flush();
 
-        //TODO SEND MESSAGE 2
         serverOutput = reader.readLine();
         if (!serverOutput.startsWith("ok") || !(serverOutput.chars().filter(ch -> ch == ' ').count() == 1)) {
             mailboxSocket.close();
@@ -313,20 +324,77 @@ public class MessageClient implements IMessageClient, Runnable {
             return;
         }
 
-        //TODO SEND MESSAGE 3
-        writer.println("MESSAGE 3");
+        SecureRandom secRandom = new SecureRandom();
+
+        //reading server public key and creating a publicKey Object
+        String compId = serverOutput.substring(3);
+        FileInputStream inputStream = new FileInputStream(compId + "_pub.der");
+        long fileSize = inputStream.getChannel().size();
+        byte[] rsaPublicKey = new byte[(int) fileSize];
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PublicKey publicKey = keyFactory.generatePublic(keySpec);
+
+        //Generating a random clientChallenge and converting it to a String
+        byte[] clientChallenge = new byte[32];
+        secRandom.nextBytes(clientChallenge);
+        String clientChallengeString = Base64.getEncoder().encodeToString(clientChallenge);
+
+        //generating an AES private Key and converting it to a String
+        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+        keyPairGenerator.initialize(2048);
+        KeyPair keyPair = keyPairGenerator.generateKeyPair();
+        PrivateKey aesPrivateKey = keyPair.getPrivate();
+        byte[] keyBytes = aesPrivateKey.getEncoded();
+        String aesPrivateKeyString = Base64.getEncoder().encodeToString(keyBytes);
+
+        //generating an initialization Vector and converting it to a String
+        byte[] iv = new byte[16];
+        secRandom.nextBytes(iv);
+        String ivString = Base64.getEncoder().encodeToString(iv);
+
+        //Generating the message that should be sent
+        String toEncrypt = "ok " + clientChallengeString + " " + aesPrivateKeyString + " " + ivString;
+
+        //Encrypting the message via the server RSA public key
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+        byte[] encryptedMessage = cipher.doFinal(toEncrypt.getBytes());
+        String messageToSend = Base64.getEncoder().encodeToString(encryptedMessage);
+
+        //Sending the message
+        writer.println(messageToSend);
         writer.flush();
 
-        //TODO SEND MESSAGE 4
+        //read message 4
         serverOutput = reader.readLine();
-        if (!serverOutput.startsWith("ok") || !(serverOutput.chars().filter(ch -> ch == ' ').count() == 1)) {
+
+        Cipher cipher2 = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        cipher2.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
+
+        // Decrypt the message4
+        byte[] decryptedMessage = cipher.doFinal(serverOutput.getBytes());
+        String decryptedMessageString = new String(decryptedMessage);
+
+        //analyse decrypted message4
+        if (!decryptedMessageString.startsWith("ok") || !(decryptedMessageString.chars().filter(ch -> ch == ' ').count() == 1)) {
             mailboxSocket.close();
             shell.err().println("error begin");
             return;
         }
+        String receivedClientChallenge = decryptedMessageString.substring(3);
 
-        //TODO SEND MESSAGE 5
-        writer.println("MESSAGE 5");
+        if(!clientChallengeString.equals(receivedClientChallenge))
+        {
+            mailboxSocket.close();
+            shell.err().println("Error establishing secure connection!");
+            return;
+        }
+
+        //sending message 5
+        byte[] encryptedMessage5 = cipher.doFinal("ok".getBytes());
+        String message5ToSend = Base64.getEncoder().encodeToString(encryptedMessage5);
+        writer.println(message5ToSend);
         writer.flush();
 
         encrypted = true;
@@ -375,7 +443,6 @@ public class MessageClient implements IMessageClient, Runnable {
 
         return true;
     }
-
 
 
     private String calculateBase64HMAC(String to, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
