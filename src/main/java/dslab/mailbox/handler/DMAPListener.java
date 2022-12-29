@@ -51,7 +51,7 @@ public class DMAPListener implements Runnable, IListener {
 
     @Override
     public void run() {
-        writer.println("ok DMAP");
+        writer.println("ok DMAP2.0");
         writer.flush();
 
         MessageStore store = MessageStore.getInstance();
