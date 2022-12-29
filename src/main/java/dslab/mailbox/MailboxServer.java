@@ -1,8 +1,16 @@
 package dslab.mailbox;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.ResourceBundle;
 
@@ -31,7 +39,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
      * @param in the input stream to read console input from
      * @param out the output stream to write console output to
      */
-    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
+    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
         this.config = config;
 
         var userPasswordMap = loadUsers();
@@ -39,7 +47,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
         String serverDomain = config.getString("domain");
 
-        dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory(componentId));
+        PrivateKey serverPrivateKey = loadRSAKey(componentId);
+
+        dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory(componentId, serverPrivateKey));
         dmtpDispatcher = new DispatchListener(config.getInt("dmtp.tcp.port"), 4, new DMTPListenerFactory(serverDomain));
 
         shell = new Shell(in, out);
@@ -74,6 +84,18 @@ public class MailboxServer implements IMailboxServer, Runnable {
         }
 
         return result;
+    }
+
+    private PrivateKey loadRSAKey(String componentId) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+        FileInputStream inputStream = new FileInputStream(componentId + ".der");
+        long fileSize = inputStream.getChannel().size();
+        byte[] rsaPublicKey = new byte[(int) fileSize];
+        inputStream.close();
+
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+        return keyFactory.generatePrivate(keySpec);
     }
 
     public static void main(String[] args) throws Exception {
