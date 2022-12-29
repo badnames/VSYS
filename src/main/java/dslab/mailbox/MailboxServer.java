@@ -9,7 +9,14 @@ import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.KeySpec;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.RSAPrivateCrtKeySpec;
+import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.ResourceBundle;
@@ -39,7 +46,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
      * @param in the input stream to read console input from
      * @param out the output stream to write console output to
      */
-    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
+    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateException {
         this.config = config;
 
         var userPasswordMap = loadUsers();
@@ -86,16 +93,17 @@ public class MailboxServer implements IMailboxServer, Runnable {
         return result;
     }
 
-    private PrivateKey loadRSAKey(String componentId) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
-        FileInputStream inputStream = new FileInputStream(componentId + ".der");
+    private PrivateKey loadRSAKey(String componentId) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateException {
+        FileInputStream inputStream = new FileInputStream("keys/server/" + componentId + ".der");
         long fileSize = inputStream.getChannel().size();
-        byte[] rsaPublicKey = new byte[(int) fileSize];
+        byte[] rsaPrivateKey = new byte[(int) fileSize];
+        inputStream.read(rsaPrivateKey);
         inputStream.close();
 
-        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
+        PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(rsaPrivateKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
-        return keyFactory.generatePrivate(keySpec);
+        
+        return keyFactory.generatePrivate(spec);
     }
 
     public static void main(String[] args) throws Exception {
