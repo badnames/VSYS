@@ -19,6 +19,7 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -29,6 +30,8 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
+import dslab.util.AESParameters;
+import dslab.util.Base64AES;
 import dslab.util.Config;
 import dslab.util.Keys;
 import dslab.util.Message;
@@ -39,17 +42,16 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class MessageClient implements IMessageClient, Runnable {
 
     private final Shell shell;
     private final Config config;
-
     private Socket transferSocket;
     private Socket mailboxSocket;
-
-    private boolean encrypted;
+    private AESParameters aesParameters;
 
 
     /**
@@ -65,7 +67,6 @@ public class MessageClient implements IMessageClient, Runnable {
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
         shell.register(this);
-        encrypted = false;
     }
 
     @Override
@@ -86,14 +87,36 @@ public class MessageClient implements IMessageClient, Runnable {
 
             List<String> messages = new ArrayList<>();
 
-            writer.println("list");
+            String toSend = "list";
+            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
+            if (toSendOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+                }
+                mailboxSocket = null;
+                return;
+            }
+            writer.println(toSendOptional.get());
             writer.flush();
-            String response = reader.readLine();
-            while (!response.equals("ok")) {
-                if (response.startsWith("error")) throw new IOException();
 
-                messages.add(response);
-                response = reader.readLine();
+            String response = reader.readLine();
+
+            var decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
+            if (decryptedInputOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+                }
+                return;
+            }
+
+
+            String[] listLines = decryptedInputOptional.get().split("\n");
+            for (var line : listLines) {
+                if (line.startsWith("error")) throw new IOException();
+                if (line.startsWith("ok")) continue;
+                messages.add(line);
             }
 
             var messageIds = messages.stream()
@@ -102,24 +125,44 @@ public class MessageClient implements IMessageClient, Runnable {
                     .collect(Collectors.toList());
 
             for (int i = 0; i < messages.size(); i++) {
-                writer.println("show " + messageIds.get(i));
+                toSend = "show " + messageIds.get(i);
+                toSendOptional = Base64AES.encrypt(toSend, aesParameters);
+                if (toSendOptional.isEmpty()) {
+                    try {
+                        mailboxSocket.close();
+                    } catch (IOException ignored) {
+                    }
+                    mailboxSocket = null;
+                    return;
+                }
+                writer.println(toSendOptional.get());
                 writer.flush();
 
                 response = reader.readLine();
-                while (!response.equals("ok")) {
-                    if (response.startsWith("error")) throw new IOException();
 
-                    shell.out().println(response);
-                    response = reader.readLine();
+                decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
+                if (decryptedInputOptional.isEmpty()) {
+                    try {
+                        mailboxSocket.close();
+                    } catch (IOException ignored) {
+                    }
+                    return;
                 }
 
+                shell.out().println("id " + messageIds.get(0));
+                String[] showLines = decryptedInputOptional.get().split("\n");
+                for (var line : showLines) {
+                    if (response.startsWith("error")) throw new IOException();
+                    if (response.startsWith("ok")) continue;
+
+                    shell.out().println(line);
+                }
                 shell.out().println();
             }
 
         } catch (IOException e) {
             shell.err().println("Error reading inbox");
         }
-
     }
 
     @Command
@@ -133,7 +176,17 @@ public class MessageClient implements IMessageClient, Runnable {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
-            writer.println("delete " + id);
+            String toSend = "delete " + id;
+            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
+            if (toSendOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+                }
+                mailboxSocket = null;
+                return;
+            }
+            writer.println(toSend);
             writer.flush();
 
             String response = reader.readLine();
@@ -157,8 +210,17 @@ public class MessageClient implements IMessageClient, Runnable {
         try {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
-
-            writer.println("show " + id);
+            String toSend = "show " + id;
+            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
+            if (toSendOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+                }
+                mailboxSocket = null;
+                return;
+            }
+            writer.println(toSend);
             writer.flush();
 
             String compHash = null;
@@ -308,11 +370,7 @@ public class MessageClient implements IMessageClient, Runnable {
         throw new StopShellException();
     }
 
-    @Command
-    public void startSecure() throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidKeyException {
-        var writer = new PrintWriter(mailboxSocket.getOutputStream());
-        var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
-
+    public void startSecure(PrintWriter writer, BufferedReader reader) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidKeyException, InvalidAlgorithmParameterException {
         String serverOutput;
         writer.println("startsecure");
         writer.flush();
@@ -328,9 +386,11 @@ public class MessageClient implements IMessageClient, Runnable {
 
         //reading server public key and creating a publicKey Object
         String compId = serverOutput.substring(3);
-        FileInputStream inputStream = new FileInputStream(compId + "_pub.der");
+        FileInputStream inputStream = new FileInputStream("keys/client/" + compId + "_pub.der");
         long fileSize = inputStream.getChannel().size();
         byte[] rsaPublicKey = new byte[(int) fileSize];
+        inputStream.read(rsaPublicKey);
+        inputStream.close();
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         PublicKey publicKey = keyFactory.generatePublic(keySpec);
@@ -341,25 +401,24 @@ public class MessageClient implements IMessageClient, Runnable {
         String clientChallengeString = Base64.getEncoder().encodeToString(clientChallenge);
 
         //generating an AES private Key and converting it to a String
-        KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-        keyPairGenerator.initialize(2048);
-        KeyPair keyPair = keyPairGenerator.generateKeyPair();
-        PrivateKey aesPrivateKey = keyPair.getPrivate();
-        byte[] keyBytes = aesPrivateKey.getEncoded();
-        String aesPrivateKeyString = Base64.getEncoder().encodeToString(keyBytes);
+        byte[] secureRandomKeyBytes = new byte[128 / 8];
+        SecureRandom secureRandom = new SecureRandom();
+        secureRandom.nextBytes(secureRandomKeyBytes);
+        var aesKeySpec = new SecretKeySpec(secureRandomKeyBytes, "AES");
+        String aesKey = Base64.getEncoder().encodeToString(secureRandomKeyBytes);
 
         //generating an initialization Vector and converting it to a String
         byte[] iv = new byte[16];
         secRandom.nextBytes(iv);
         String ivString = Base64.getEncoder().encodeToString(iv);
 
-        //Generating the message that should be sent
-        String toEncrypt = "ok " + clientChallengeString + " " + aesPrivateKeyString + " " + ivString;
+        //Generating the message3 that should be sent
+        String toEncrypt = "ok " + clientChallengeString + " " + aesKey + " " + ivString;
 
-        //Encrypting the message via the server RSA public key
-        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-        cipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        byte[] encryptedMessage = cipher.doFinal(toEncrypt.getBytes());
+        //Encrypting the message3 via the server RSA public key
+        Cipher rsaCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        rsaCipher.init(Cipher.ENCRYPT_MODE, publicKey);
+        byte[] encryptedMessage = rsaCipher.doFinal(toEncrypt.getBytes());
         String messageToSend = Base64.getEncoder().encodeToString(encryptedMessage);
 
         //Sending the message
@@ -384,20 +443,21 @@ public class MessageClient implements IMessageClient, Runnable {
         }
         String receivedClientChallenge = decryptedMessageString.substring(3);
 
-        if(!clientChallengeString.equals(receivedClientChallenge))
-        {
+        if (!clientChallengeString.equals(receivedClientChallenge)) {
             mailboxSocket.close();
             shell.err().println("Error establishing secure connection!");
             return;
         }
 
         //sending message 5
-        byte[] encryptedMessage5 = cipher.doFinal("ok".getBytes());
-        String message5ToSend = Base64.getEncoder().encodeToString(encryptedMessage5);
-        writer.println(message5ToSend);
+        var okResponseOptional = Base64AES.encrypt("ok", aesParameters);
+        if (okResponseOptional.isEmpty()) {
+            mailboxSocket.close();
+            shell.err().println("Error establishing secure connection!");
+            return;
+        }
+        writer.println(okResponseOptional.get());
         writer.flush();
-
-        encrypted = true;
     }
 
     private boolean connectDMAP() {
@@ -413,7 +473,9 @@ public class MessageClient implements IMessageClient, Runnable {
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
             String line = reader.readLine();
-            if (!line.equals("ok DMAP")) {
+
+
+            if (!line.equals("ok DMAP2.0")) {
                 shell.err().println("Protocol error");
                 mailboxSocket.close();
                 mailboxSocket = null;
@@ -423,8 +485,18 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password"));
             writer.flush();
+
             line = reader.readLine();
-            if (!line.equals("ok")) {
+            var decryptedInputOptional = Base64AES.decrypt(line, aesParameters);
+            if (decryptedInputOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+                }
+                return false;
+            }
+
+            if (!decryptedInputOptional.get().equals("ok")) {
                 shell.err().println("Invalid credentials");
                 mailboxSocket.close();
                 mailboxSocket = null;
