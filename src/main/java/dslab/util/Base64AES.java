@@ -13,15 +13,17 @@ import java.util.Optional;
 
 public class Base64AES {
     public static Optional<String> encrypt(String input, AESParameters parameters)  {
+        if (input == null) return Optional.empty();
+
         try {
-            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+            Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
 
             cipher.init(Cipher.ENCRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
 
-            byte[] decodedInput = Base64.getDecoder().decode(input);
+            byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
+            String output = Base64.getEncoder().encodeToString(cipherText);
 
-            byte[] plainText = cipher.doFinal(decodedInput);
-            return Optional.of(new String(plainText, StandardCharsets.UTF_8));
+            return Optional.of(output);
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
                  IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
             return Optional.empty();
@@ -29,15 +31,17 @@ public class Base64AES {
     }
 
     public static Optional<String> decrypt(String input, AESParameters parameters)  {
+        if (input == null) return Optional.empty();
+
         try {
-            Cipher cipher = Cipher.getInstance("AES/CBC/NoPadding");
+            Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
 
             cipher.init(Cipher.DECRYPT_MODE, parameters.getKey(), parameters.getInitializationVector());
 
             byte[] decodedInput = Base64.getDecoder().decode(input);
 
-            byte[] cipherText = cipher.doFinal(decodedInput);
-            return Optional.of(Base64.getEncoder().encodeToString(cipherText));
+            byte[] plainText = cipher.doFinal(decodedInput);
+            return Optional.of(new String(plainText, StandardCharsets.UTF_8));
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
                  IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
             return Optional.empty();

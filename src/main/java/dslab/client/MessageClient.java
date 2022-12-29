@@ -10,6 +10,7 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -428,15 +429,18 @@ public class MessageClient implements IMessageClient, Runnable {
         //read message 4
         serverOutput = reader.readLine();
 
-        Cipher cipher2 = Cipher.getInstance("AES/ECB/PKCS5Padding");
-        cipher2.init(Cipher.DECRYPT_MODE, keyPair.getPrivate());
-
         // Decrypt the message4
-        byte[] decryptedMessage = cipher.doFinal(serverOutput.getBytes());
-        String decryptedMessageString = new String(decryptedMessage);
+        aesParameters = new AESParameters(aesKeySpec, new IvParameterSpec(iv));
+        var decryptedMessageOptional = Base64AES.decrypt(serverOutput, aesParameters);
+        if (decryptedMessageOptional.isEmpty()) {
+            shell.err().println("Error establishing secure connection!");
+            return;
+        }
+
+        String decryptedMessageString = decryptedMessageOptional.get();
 
         //analyse decrypted message4
-        if (!decryptedMessageString.startsWith("ok") || !(decryptedMessageString.chars().filter(ch -> ch == ' ').count() == 1)) {
+        if (!decryptedMessageString.startsWith("ok ")) {
             mailboxSocket.close();
             shell.err().println("Error establishing secure connection!");
             return;
@@ -482,8 +486,20 @@ public class MessageClient implements IMessageClient, Runnable {
                 return false;
             }
 
+            startSecure(writer, reader);
 
-            writer.println("login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password"));
+            String toSend = "login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password");
+            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
+            if (toSendOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {
+
+                }
+                mailboxSocket = null;
+                return false;
+            }
+            writer.println(toSendOptional.get());
             writer.flush();
 
             line = reader.readLine();
@@ -503,7 +519,8 @@ public class MessageClient implements IMessageClient, Runnable {
                 return false;
             }
 
-        } catch (IOException e) {
+        } catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException |
+                 BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException e) {
             shell.err().println("Could not login to mailbox!");
             try {
                 mailboxSocket.close();

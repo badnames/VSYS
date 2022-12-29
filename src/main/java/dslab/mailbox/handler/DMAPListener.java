@@ -151,7 +151,7 @@ public class DMAPListener implements Runnable, IListener {
                         continue;
                     }
 
-                    writer.println(response);
+                    writer.println(encryptedOutputOptional.get());
                     break;
 
                 case AUTHENTICATED_LOGGED_IN:
@@ -170,7 +170,7 @@ public class DMAPListener implements Runnable, IListener {
                         continue;
                     }
 
-                    response = parseLoggedInState(input, username, store);
+                    response = parseLoggedInState(decryptedInputOptional.get(), username, store);
 
                     encryptedOutputOptional = Base64AES.encrypt(response, aesParameters);
                     if (encryptedOutputOptional.isEmpty()) {
@@ -180,7 +180,7 @@ public class DMAPListener implements Runnable, IListener {
                         continue;
                     }
 
-                    writer.println(response);
+                    writer.println(encryptedOutputOptional.get());
 
                     if (state == DMAPState.AUTHENTICATED_WAITING) {
                         username = null;
@@ -257,11 +257,6 @@ public class DMAPListener implements Runnable, IListener {
     }
 
     private AESParameters parseAuthenticatingState(String input, PrivateKey privateKey) throws IOException {
-        if (!input.startsWith("ok")) {
-            socket.close();
-            return null;
-        }
-
         byte[] inputDecoded = Base64.getDecoder().decode(input);
         String decryptedInput;
 
@@ -290,20 +285,34 @@ public class DMAPListener implements Runnable, IListener {
         String secretKey = parts[2];
         String initializationVector = parts[3];
 
-        writer.println("ok " + challenge);
-        writer.flush();
-
-        String response = reader.readLine();
-        if (!response.equals("ok")) {
-            socket.close();
-            return null;
-        }
-
         byte[] secretKeyDecoded = Base64.getDecoder().decode(secretKey);
         byte[] initializationVectorDecoded = Base64.getDecoder().decode(initializationVector);
 
         SecretKey aesKey = new SecretKeySpec(secretKeyDecoded, "AES");
         IvParameterSpec aesInitializationVector = new IvParameterSpec(initializationVectorDecoded);
+        AESParameters aesParameters = new AESParameters(aesKey, aesInitializationVector);
+
+        var encryptedResponseOptional = Base64AES.encrypt("ok " + challenge, aesParameters);
+        if (encryptedResponseOptional.isEmpty()) {
+            socket.close();
+            return null;
+        }
+
+        writer.println(encryptedResponseOptional.get());
+        writer.flush();
+
+        String response = reader.readLine();
+
+        var decryptedResponseOptional = Base64AES.decrypt(response, aesParameters);
+        if (decryptedResponseOptional.isEmpty()) {
+            socket.close();
+            return null;
+        }
+
+        if (!decryptedResponseOptional.get().equals("ok")) {
+            socket.close();
+            return null;
+        }
 
         return new AESParameters(aesKey, aesInitializationVector);
     }
