@@ -150,11 +150,11 @@ public class MessageClient implements IMessageClient, Runnable {
                     return;
                 }
 
-                shell.out().println("id " + messageIds.get(0));
+                shell.out().println("id " + messageIds.get(i));
                 String[] showLines = decryptedInputOptional.get().split("\n");
                 for (var line : showLines) {
-                    if (response.startsWith("error")) throw new IOException();
-                    if (response.startsWith("ok")) continue;
+                    if (line.startsWith("error")) throw new IOException();
+                    if (line.equals("ok")) continue;
 
                     shell.out().println(line);
                 }
@@ -169,6 +169,7 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void delete(String id) {
+        // TODO: verschlüsseln
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (!connectDMAP()) return;
         }
