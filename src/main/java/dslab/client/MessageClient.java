@@ -33,6 +33,7 @@ import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.util.AESParameters;
 import dslab.util.Base64AES;
+import dslab.util.Base64CryptoException;
 import dslab.util.Config;
 import dslab.util.Keys;
 import dslab.util.Message;
@@ -89,16 +90,9 @@ public class MessageClient implements IMessageClient, Runnable {
             List<String> messages = new ArrayList<>();
 
             String toSend = "list";
-            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
-            if (toSendOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {
-                }
-                mailboxSocket = null;
-                return;
-            }
-            writer.println(toSendOptional.get());
+            String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+
+            writer.println(toSendEncrypted);
             writer.flush();
 
             String response = reader.readLine();
@@ -127,16 +121,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             for (int i = 0; i < messages.size(); i++) {
                 toSend = "show " + messageIds.get(i);
-                toSendOptional = Base64AES.encrypt(toSend, aesParameters);
-                if (toSendOptional.isEmpty()) {
-                    try {
-                        mailboxSocket.close();
-                    } catch (IOException ignored) {
-                    }
-                    mailboxSocket = null;
-                    return;
-                }
-                writer.println(toSendOptional.get());
+                toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+                writer.println(toSendEncrypted);
                 writer.flush();
 
                 response = reader.readLine();
@@ -161,8 +147,13 @@ public class MessageClient implements IMessageClient, Runnable {
                 shell.out().println();
             }
 
-        } catch (IOException e) {
+        } catch (IOException | Base64CryptoException e) {
             shell.err().println("Error reading inbox");
+
+            try {
+                mailboxSocket.close();
+            } catch (IOException ignored) {}
+            mailboxSocket = null;
         }
     }
 
@@ -179,25 +170,23 @@ public class MessageClient implements IMessageClient, Runnable {
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
             String toSend = "delete " + id;
-            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
-            if (toSendOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {
-                }
-                mailboxSocket = null;
-                return;
-            }
-            writer.println(toSend);
+            String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+            writer.println(toSendEncrypted);
             writer.flush();
 
             String response = reader.readLine();
+            //TODO: decrypt
             if (!response.equals("ok")) {
                 shell.err().println(response);
             }
 
-        } catch (IOException e) {
+        } catch (IOException | Base64CryptoException e) {
             shell.err().println("Error deleting message " + id);
+
+            try {
+                mailboxSocket.close();
+            } catch (IOException ignored) {}
+            mailboxSocket = null;
         }
     }
 
@@ -213,15 +202,8 @@ public class MessageClient implements IMessageClient, Runnable {
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
             String toSend = "show " + id;
-            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
-            if (toSendOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {}
-                mailboxSocket = null;
-                return;
-            }
-            writer.println(toSendOptional.get());
+            String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+            writer.println(toSendEncrypted);
             writer.flush();
 
             String compHash = null;
@@ -269,7 +251,7 @@ public class MessageClient implements IMessageClient, Runnable {
             }
 
 
-        } catch (IOException | NoSuchAlgorithmException | InvalidKeyException e) {
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeyException | Base64CryptoException e) {
             shell.err().println("Error verifying message " + id);
         }
     }
@@ -456,14 +438,14 @@ public class MessageClient implements IMessageClient, Runnable {
         }
 
         //sending message 5
-        var okResponseOptional = Base64AES.encrypt("ok", aesParameters);
-        if (okResponseOptional.isEmpty()) {
+        try {
+            String okResponseEncrypted = Base64AES.encrypt("ok", aesParameters);
+            writer.println(okResponseEncrypted);
+            writer.flush();
+        } catch (Base64CryptoException e) {
             mailboxSocket.close();
             shell.err().println("Error establishing secure connection!");
-            return;
         }
-        writer.println(okResponseOptional.get());
-        writer.flush();
     }
 
     private boolean connectDMAP() {
@@ -491,17 +473,8 @@ public class MessageClient implements IMessageClient, Runnable {
             startSecure(writer, reader);
 
             String toSend = "login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password");
-            var toSendOptional = Base64AES.encrypt(toSend, aesParameters);
-            if (toSendOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {
-
-                }
-                mailboxSocket = null;
-                return false;
-            }
-            writer.println(toSendOptional.get());
+            String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+            writer.println(toSendEncrypted);
             writer.flush();
 
             line = reader.readLine();
@@ -522,12 +495,13 @@ public class MessageClient implements IMessageClient, Runnable {
             }
 
         } catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException |
-                 BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException e) {
+                 BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException
+                 | Base64CryptoException e) {
+
             shell.err().println("Could not login to mailbox!");
             try {
                 mailboxSocket.close();
-            } catch (IOException ignored) {
-            }
+            } catch (IOException ignored) {}
             mailboxSocket = null;
             return false;
         }

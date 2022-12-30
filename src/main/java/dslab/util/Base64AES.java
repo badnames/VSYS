@@ -12,8 +12,8 @@ import java.util.Base64;
 import java.util.Optional;
 
 public class Base64AES {
-    public static Optional<String> encrypt(String input, AESParameters parameters)  {
-        if (input == null) return Optional.empty();
+    public static String encrypt(String input, AESParameters parameters) throws Base64CryptoException {
+        if (input == null) throw new Base64CryptoException("Input is null!");
 
         try {
             Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
@@ -23,10 +23,10 @@ public class Base64AES {
             byte[] cipherText = cipher.doFinal(input.getBytes(StandardCharsets.UTF_8));
             String output = Base64.getEncoder().encodeToString(cipherText);
 
-            return Optional.of(output);
+            return output;
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
                  IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
-            return Optional.empty();
+            throw new Base64CryptoException(e);
         }
     }
 

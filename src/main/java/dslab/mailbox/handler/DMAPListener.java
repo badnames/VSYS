@@ -3,6 +3,7 @@ package dslab.mailbox.handler;
 import dslab.mailbox.MessageStore;
 import dslab.util.AESParameters;
 import dslab.util.Base64AES;
+import dslab.util.Base64CryptoException;
 import dslab.util.DMAPState;
 import dslab.util.handler.IListener;
 
@@ -85,7 +86,6 @@ public class DMAPListener implements Runnable, IListener {
 
             String response;
             Optional<String> decryptedInputOptional;
-            Optional<String> encryptedOutputOptional;
 
             switch (state) {
                 case WAITING:
@@ -143,15 +143,13 @@ public class DMAPListener implements Runnable, IListener {
                         state = DMAPState.AUTHENTICATED_LOGGED_IN;
                     }
 
-                    encryptedOutputOptional = Base64AES.encrypt(response, aesParameters);
-                    if (encryptedOutputOptional.isEmpty()) {
-                        try {
-                            socket.close();
-                        } catch (IOException ignored) {}
+                    try {
+                        String responseEncrypted = Base64AES.encrypt(response, aesParameters);
+                        writer.println(responseEncrypted);
+                    } catch (Base64CryptoException e) {
+                        stop();
                         continue;
                     }
-
-                    writer.println(encryptedOutputOptional.get());
                     break;
 
                 case AUTHENTICATED_LOGGED_IN:
@@ -172,15 +170,12 @@ public class DMAPListener implements Runnable, IListener {
 
                     response = parseLoggedInState(decryptedInputOptional.get(), username, store);
 
-                    encryptedOutputOptional = Base64AES.encrypt(response, aesParameters);
-                    if (encryptedOutputOptional.isEmpty()) {
-                        try {
-                            socket.close();
-                        } catch (IOException ignored) {}
-                        continue;
+                    try {
+                        String responseEncrypted = Base64AES.encrypt(response, aesParameters);
+                        writer.println(responseEncrypted);
+                    } catch (Base64CryptoException e) {
+                        throw new RuntimeException(e);
                     }
-
-                    writer.println(encryptedOutputOptional.get());
 
                     if (state == DMAPState.AUTHENTICATED_WAITING) {
                         username = null;
@@ -292,14 +287,14 @@ public class DMAPListener implements Runnable, IListener {
         IvParameterSpec aesInitializationVector = new IvParameterSpec(initializationVectorDecoded);
         AESParameters aesParameters = new AESParameters(aesKey, aesInitializationVector);
 
-        var encryptedResponseOptional = Base64AES.encrypt("ok " + challenge, aesParameters);
-        if (encryptedResponseOptional.isEmpty()) {
-            socket.close();
+        try {
+            String encryptedResponseOptional = Base64AES.encrypt("ok " + challenge, aesParameters);
+            writer.println(encryptedResponseOptional);
+            writer.flush();
+        } catch (Base64CryptoException e) {
+            stop();
             return null;
         }
-
-        writer.println(encryptedResponseOptional.get());
-        writer.flush();
 
         String response = reader.readLine();
 
