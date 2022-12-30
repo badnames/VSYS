@@ -47,6 +47,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+@SuppressWarnings("resource")
 public class MessageClient implements IMessageClient, Runnable {
 
     private final Shell shell;
@@ -145,7 +146,6 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void delete(String id) {
-        // TODO: verschlüsseln
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (!connectDMAP()) return;
         }
