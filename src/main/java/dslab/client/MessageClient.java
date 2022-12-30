@@ -160,9 +160,9 @@ public class MessageClient implements IMessageClient, Runnable {
             writer.flush();
 
             String response = reader.readLine();
-            //TODO: decrypt
-            if (!response.equals("ok")) {
-                shell.err().println(response);
+            String responseDecrypted = Base64AES.decrypt(response, aesParameters);
+            if (!responseDecrypted.equals("ok")) {
+                shell.err().println(responseDecrypted);
             }
 
         } catch (IOException | Base64CryptoException e) {
