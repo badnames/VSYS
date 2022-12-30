@@ -97,17 +97,9 @@ public class MessageClient implements IMessageClient, Runnable {
 
             String response = reader.readLine();
 
-            var decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
-            if (decryptedInputOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {
-                }
-                return;
-            }
+            String decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
 
-
-            String[] listLines = decryptedInputOptional.get().split("\n");
+            String[] listLines = decryptedInputOptional.split("\n");
             for (var line : listLines) {
                 if (line.startsWith("error")) throw new IOException();
                 if (line.startsWith("ok")) continue;
@@ -126,18 +118,11 @@ public class MessageClient implements IMessageClient, Runnable {
                 writer.flush();
 
                 response = reader.readLine();
-
                 decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
-                if (decryptedInputOptional.isEmpty()) {
-                    try {
-                        mailboxSocket.close();
-                    } catch (IOException ignored) {
-                    }
-                    return;
-                }
 
                 shell.out().println("id " + messageIds.get(i));
-                String[] showLines = decryptedInputOptional.get().split("\n");
+
+                String[] showLines = decryptedInputOptional.split("\n");
                 for (var line : showLines) {
                     if (line.startsWith("error")) throw new IOException();
                     if (line.equals("ok")) continue;
@@ -209,17 +194,11 @@ public class MessageClient implements IMessageClient, Runnable {
             String compHash = null;
 
             Message message = new Message("", "", "", "", "");
-            String response = reader.readLine();
-            var responseOptional = Base64AES.decrypt(response, aesParameters);
-            if (responseOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {}
-                mailboxSocket = null;
-                return;
-            }
 
-            String[] responseLines = responseOptional.get().split("\n");
+            String response = reader.readLine();
+            String responseOptional = Base64AES.decrypt(response, aesParameters);
+            String[] responseLines = responseOptional.split("\n");
+
             for (var line : responseLines) {
                 if (line.startsWith("error")) throw new IOException();
                 if (line.equals("ok")) continue;
@@ -414,31 +393,27 @@ public class MessageClient implements IMessageClient, Runnable {
         serverOutput = reader.readLine();
 
         // Decrypt the message4
-        aesParameters = new AESParameters(aesKeySpec, new IvParameterSpec(iv));
-        var decryptedMessageOptional = Base64AES.decrypt(serverOutput, aesParameters);
-        if (decryptedMessageOptional.isEmpty()) {
-            shell.err().println("Error establishing secure connection!");
-            return;
-        }
-
-        String decryptedMessageString = decryptedMessageOptional.get();
-
-        //analyse decrypted message4
-        if (!decryptedMessageString.startsWith("ok ")) {
-            mailboxSocket.close();
-            shell.err().println("Error establishing secure connection!");
-            return;
-        }
-        String receivedClientChallenge = decryptedMessageString.substring(3);
-
-        if (!clientChallengeString.equals(receivedClientChallenge)) {
-            mailboxSocket.close();
-            shell.err().println("Error establishing secure connection!");
-            return;
-        }
-
-        //sending message 5
         try {
+            aesParameters = new AESParameters(aesKeySpec, new IvParameterSpec(iv));
+            var decryptedMessageOptional = Base64AES.decrypt(serverOutput, aesParameters);
+            String decryptedMessageString = decryptedMessageOptional;
+
+
+            //analyse decrypted message4
+            if (!decryptedMessageString.startsWith("ok ")) {
+                mailboxSocket.close();
+                shell.err().println("Error establishing secure connection!");
+                return;
+            }
+            String receivedClientChallenge = decryptedMessageString.substring(3);
+
+            if (!clientChallengeString.equals(receivedClientChallenge)) {
+                mailboxSocket.close();
+                shell.err().println("Error establishing secure connection!");
+                return;
+            }
+
+            //sending message 5
             String okResponseEncrypted = Base64AES.encrypt("ok", aesParameters);
             writer.println(okResponseEncrypted);
             writer.flush();
@@ -465,9 +440,7 @@ public class MessageClient implements IMessageClient, Runnable {
 
             if (!line.equals("ok DMAP2.0")) {
                 shell.err().println("Protocol error");
-                mailboxSocket.close();
-                mailboxSocket = null;
-                return false;
+                throw new IOException();
             }
 
             startSecure(writer, reader);
@@ -478,22 +451,12 @@ public class MessageClient implements IMessageClient, Runnable {
             writer.flush();
 
             line = reader.readLine();
-            var decryptedInputOptional = Base64AES.decrypt(line, aesParameters);
-            if (decryptedInputOptional.isEmpty()) {
-                try {
-                    mailboxSocket.close();
-                } catch (IOException ignored) {
-                }
-                return false;
-            }
+            String decryptedInputOptional = Base64AES.decrypt(line, aesParameters);
 
-            if (!decryptedInputOptional.get().equals("ok")) {
+            if (!decryptedInputOptional.equals("ok")) {
                 shell.err().println("Invalid credentials");
-                mailboxSocket.close();
-                mailboxSocket = null;
-                return false;
+                throw new IOException();
             }
-
         } catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException |
                  BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException
                  | Base64CryptoException e) {

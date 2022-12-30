@@ -30,8 +30,8 @@ public class Base64AES {
         }
     }
 
-    public static Optional<String> decrypt(String input, AESParameters parameters)  {
-        if (input == null) return Optional.empty();
+    public static String decrypt(String input, AESParameters parameters) throws Base64CryptoException {
+        if (input == null) throw new Base64CryptoException("Input is null!");
 
         try {
             Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
@@ -41,10 +41,10 @@ public class Base64AES {
             byte[] decodedInput = Base64.getDecoder().decode(input);
 
             byte[] plainText = cipher.doFinal(decodedInput);
-            return Optional.of(new String(plainText, StandardCharsets.UTF_8));
+            return new String(plainText, StandardCharsets.UTF_8);
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | InvalidKeyException | BadPaddingException |
                  IllegalBlockSizeException | InvalidAlgorithmParameterException e) {
-            return Optional.empty();
+            throw new Base64CryptoException(e);
         }
     }
 
