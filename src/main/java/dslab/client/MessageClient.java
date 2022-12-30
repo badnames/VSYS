@@ -13,14 +13,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
-import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -43,7 +39,6 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.Mac;
 import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -60,12 +55,12 @@ public class MessageClient implements IMessageClient, Runnable {
     /**
      * Creates a new client instance.
      *
-     * @param componentId the id of the component that corresponds to the Config resource
+     * @param ignoredComponentId the id of the component that corresponds to the Config resource
      * @param config      the component config
      * @param in          the input stream to read console input from
      * @param out         the output stream to write console output to
      */
-    public MessageClient(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
+    public MessageClient(String ignoredComponentId, Config config, InputStream in, PrintStream out) throws IOException {
         this.config = config;
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
@@ -81,7 +76,7 @@ public class MessageClient implements IMessageClient, Runnable {
     @Override
     public void inbox() {
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
-            if (!connectDMAP()) return;
+            if (connectDMAP()) return;
         }
 
         try {
@@ -147,7 +142,7 @@ public class MessageClient implements IMessageClient, Runnable {
     @Override
     public void delete(String id) {
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
-            if (!connectDMAP()) return;
+            if (connectDMAP()) return;
         }
 
         try {
@@ -180,7 +175,7 @@ public class MessageClient implements IMessageClient, Runnable {
     public void verify(String id) {
         // TODO
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
-            if (!connectDMAP()) return;
+            if (connectDMAP()) return;
         }
 
         try {
@@ -352,9 +347,17 @@ public class MessageClient implements IMessageClient, Runnable {
         String compId = serverOutput.substring(3);
         FileInputStream inputStream = new FileInputStream("keys/client/" + compId + "_pub.der");
         long fileSize = inputStream.getChannel().size();
+
         byte[] rsaPublicKey = new byte[(int) fileSize];
-        inputStream.read(rsaPublicKey);
+        int bytesRead = inputStream.read(rsaPublicKey);
+        if (bytesRead != fileSize) {
+            mailboxSocket.close();
+            shell.err().println("error reading key file");
+            return;
+        }
+
         inputStream.close();
+
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         PublicKey publicKey = keyFactory.generatePublic(keySpec);
@@ -395,8 +398,7 @@ public class MessageClient implements IMessageClient, Runnable {
         // Decrypt the message4
         try {
             aesParameters = new AESParameters(aesKeySpec, new IvParameterSpec(iv));
-            var decryptedMessageOptional = Base64AES.decrypt(serverOutput, aesParameters);
-            String decryptedMessageString = decryptedMessageOptional;
+            String decryptedMessageString = Base64AES.decrypt(serverOutput, aesParameters);
 
 
             //analyse decrypted message4
@@ -423,12 +425,13 @@ public class MessageClient implements IMessageClient, Runnable {
         }
     }
 
+    // returns true if an error occurred
     private boolean connectDMAP() {
         try {
             mailboxSocket = new Socket(config.getString("mailbox.host"), config.getInt("mailbox.port"));
         } catch (IOException e) {
             shell.err().println("Could not connect to mailbox!");
-            return false;
+            return true;
         }
 
         try {
@@ -466,10 +469,10 @@ public class MessageClient implements IMessageClient, Runnable {
                 mailboxSocket.close();
             } catch (IOException ignored) {}
             mailboxSocket = null;
-            return false;
+            return true;
         }
 
-        return true;
+        return false;
     }
 
 
