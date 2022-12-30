@@ -217,38 +217,43 @@ public class MessageClient implements IMessageClient, Runnable {
             if (toSendOptional.isEmpty()) {
                 try {
                     mailboxSocket.close();
-                } catch (IOException ignored) {
-                }
+                } catch (IOException ignored) {}
                 mailboxSocket = null;
                 return;
             }
-            writer.println(toSend);
+            writer.println(toSendOptional.get());
             writer.flush();
 
             String compHash = null;
 
             Message message = new Message("", "", "", "", "");
             String response = reader.readLine();
-            while (!response.equals("ok")) {
-                if (response.startsWith("error")) throw new IOException();
+            var responseOptional = Base64AES.decrypt(response, aesParameters);
+            if (responseOptional.isEmpty()) {
+                try {
+                    mailboxSocket.close();
+                } catch (IOException ignored) {}
+                mailboxSocket = null;
+                return;
+            }
 
-                if (response.startsWith("to")) {
+            String[] responseLines = responseOptional.get().split("\n");
+            for (var line : responseLines) {
+                if (line.startsWith("error")) throw new IOException();
+                if (line.equals("ok")) continue;
+
+                if (line.startsWith("to")) {
                     // The first part of the message needs to be removed
-                    message.setTo(response.substring(3));
-                } else if (response.startsWith("from")) {
-                    // The first part of the message needs to be removed
-                    message.setFrom(response.substring(5));
-                } else if (response.startsWith("subject")) {
-                    // The first part of the message needs to be removed
-                    message.setSubject(response.substring(8));
-                } else if (response.startsWith("data")) {
-                    // The first part of the message needs to be removed
-                    message.setData(response.substring(5));
-                } else if (response.startsWith("hash")) {
-                    // The first part of the message needs to be removed
-                    compHash = response.substring(5);
+                    message.setTo(line.substring(3));
+                } else if (line.startsWith("from")) {
+                    message.setFrom(line.substring(5));
+                } else if (line.startsWith("subject")) {
+                    message.setSubject(line.substring(8));
+                } else if (line.startsWith("data")) {
+                    message.setData(line.substring(5));
+                } else if (line.startsWith("hash")) {
+                    compHash = line.substring(5);
                 }
-                response = reader.readLine();
             }
 
             if (compHash == null) {
@@ -264,12 +269,8 @@ public class MessageClient implements IMessageClient, Runnable {
             }
 
 
-        } catch (IOException e) {
+        } catch (IOException | NoSuchAlgorithmException | InvalidKeyException e) {
             shell.err().println("Error verifying message " + id);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        } catch (InvalidKeyException e) {
-            throw new RuntimeException(e);
         }
     }
 
