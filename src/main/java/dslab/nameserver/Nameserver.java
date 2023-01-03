@@ -1,22 +1,14 @@
 package dslab.nameserver;
 
 import java.io.*;
-import java.lang.reflect.Array;
-import java.net.Socket;
 import java.util.ArrayList;
-import java.util.List;
 
 import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.mailbox.handler.DMAPListenerFactory;
-import dslab.mailbox.handler.DMTPListenerFactory;
 import dslab.util.Config;
 import dslab.util.handler.DispatchListener;
-import dslab.util.handler.IListener;
-
-import javax.swing.tree.TreeNode;
 
 public class Nameserver implements INameserver {
 
@@ -32,13 +24,15 @@ public class Nameserver implements INameserver {
     private String componentID;
     private InputStream in;
     private PrintStream out;
-    private ArrayList<NameStore> nameStores;
+    private ArrayList<NameStore> children;  //TODO: put children here
 
     private final Shell shell;
     private final Config config;
 
     private final DispatchListener register;
     private final DispatchListener listener;
+
+    private String domain;
 
 
     public Nameserver(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
@@ -48,9 +42,9 @@ public class Nameserver implements INameserver {
         this.in=in;
         this.out=out;
 
-        String serverDomain = config.getString("domain");
+        this.domain = config.getString("domain");
 
-        register= new DispatchListener(config.getInt("registry.port"), 4, new NameListenerFactory());
+        register= new DispatchListener(config.getInt("registry.port"), 4, new NameRegisterFactory(domain, children));
         listener = new DispatchListener(config.getInt("registry.port"), 4, new NameListenerFactory());
 
         shell = new Shell(in, out);
@@ -66,54 +60,54 @@ public class Nameserver implements INameserver {
         new Thread(listener).start();
 
         shell.run();
-
-        if (nameStores==null){
-            // new
-            nameStores.add(new NameStore(null,0,0));
-        }else {
-
-        }
-        //TODO:
-        /*
-        if (root==null){
-            //TODO initialize root
-            root= new Nameserver(null,null,null,null);
-        }else {
-            //TODO search for the domain
-            function()
-            //if domain is found, place it there
-            //else create new Nameserver
-
-        }*/
         shell.out().println("# "+config.getString("domain")+ " nameserver");
+
+
     }
 
     @Override
     @Command
+    //Prints out each known nameserver (zones) in alphabetical order,
+    // from the perspective of this nameserver
     public void nameservers() {
-        // TODO
-        for (int i = 0; i < nameStores.size(); i++) {
-            shell.out().println(i+". "+nameStores.get(i).getDomain());
+        // TODO: alphabetical
+        for (int i = 0; i < children.size(); i++) {
+            shell.out().println(i+". "+ children.get(i).getDomain());
         }
 
     }
 
     @Override
     @Command
+    //Prints out some information about each stored mailbox server address, containing mail DOMAIN and
+    //ADRESSES (IP:port), arranged by the domain in alphabetical order.
     public void addresses() {
         // TODO
-        for (int i = 0; i < nameStores.size(); i++) {
-            shell.out().println(i+". "+nameStores.get(i).getDomain()+" "+nameStores.get(i).getIp()+":"+nameStores.get(i).getPort());
+        for (int i = 0; i < children.size(); i++) {
+            shell.out().println(i+". "+ children.get(i).getDomain()+" "+ children.get(i).getIp()+":"+ children.get(i).getPort());
         }
     }
 
     @Override
     @Command
+    //Shutdown the nameserver and all related resources
     public void shutdown() {
         // TODO
         register.stop();
         listener.stop();
         throw new StopShellException();
+    }
+
+    public ArrayList<NameStore>  getChildren(){
+        return children;
+    }
+
+    public void addChildren(NameStore store){
+        children.add(store);
+    }
+
+    public void deleteChildren(NameStore store){
+        children.remove(store);
     }
 
     public static void main(String[] args) throws Exception {
