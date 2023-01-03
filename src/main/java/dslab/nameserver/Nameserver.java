@@ -11,6 +11,8 @@ import dslab.ComponentFactory;
 import dslab.util.Config;
 import dslab.util.handler.DispatchListener;
 
+//Nameservers only host exactly one zone.
+//A nameserver can communicate with the nameservers on the next lower level
 public class Nameserver implements INameserver {
 
     /**
