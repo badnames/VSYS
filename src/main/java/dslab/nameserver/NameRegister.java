@@ -73,7 +73,9 @@ public class NameRegister implements Runnable, IListener, INameserverRemote {
                 }
             }
 
-            //if not, then make a new zone there
+            //look for children
+            //if exist, pass the zone there
+            //if not exist, then make a new zone there
 
         }
     }
@@ -92,6 +94,7 @@ public class NameRegister implements Runnable, IListener, INameserverRemote {
     }
 
     @Override
+    //It locates the root nameserver and queries it for the nameserver of the top-level
     public String lookup(String username) throws RemoteException {
         return null;
     }
