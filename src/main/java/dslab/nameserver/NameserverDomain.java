@@ -1,12 +1,12 @@
 package dslab.nameserver;
 
-public class NameStore {
+public class NameserverDomain {
 
     private String domain;
     private int ip;
     private int port;
 
-    NameStore(String domain, int ip, int port){
+    NameserverDomain(String domain, int ip, int port){
         this.domain =domain;
         this.ip = ip;
         this.port =port;

@@ -1,6 +1,5 @@
 package dslab.nameserver;
 
-import dslab.util.Config;
 import dslab.util.handler.IListener;
 
 import java.io.BufferedReader;
@@ -15,10 +14,10 @@ public class NameRegister implements Runnable, IListener, INameserverRemote {
     private final Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
-    private ArrayList<NameStore> store;
+    private ArrayList<NameserverDomain> store;
     //private String domain;
 
-    public NameRegister(Socket socket, String serverDomain, ArrayList<NameStore> store) {
+    public NameRegister(Socket socket, String serverDomain, ArrayList<NameserverDomain> store) {
         this.socket = socket;
         //this.domain = serverDomain;
         this.store = store;
@@ -65,7 +64,7 @@ public class NameRegister implements Runnable, IListener, INameserverRemote {
         }
 
         if (store.isEmpty()){ //nothing is there --> set root
-            store.add(new NameStore(domain,0,0)); //TODO: port and host
+            store.add(new NameserverDomain(domain,0,0)); //TODO: port and host
         }else{  //see if the zone is already registered
             for (int i = 0; i < store.size(); i++) {
                 if (store.get(i).getDomain().endsWith(zone)){ //if yes, the message goes there

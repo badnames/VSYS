@@ -1,7 +1,6 @@
 package dslab.nameserver;
 
 import java.io.*;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 
 import at.ac.tuwien.dsg.orvell.Shell;
@@ -27,7 +26,7 @@ public class Nameserver implements INameserver {
     private String componentID;
     private InputStream in;
     private PrintStream out;
-    private ArrayList<NameStore> children;  //TODO: put children here
+    private ArrayList<NameserverDomain> children;  //TODO: put children here
 
     private final Shell shell;
     private final Config config;
@@ -130,7 +129,7 @@ public class Nameserver implements INameserver {
 
             for (int i = 0; i < children.size(); i++) {
                 //looking for the namestore after the alphabetical sort to extract IP and PORT
-                NameStore nameStore;
+                NameserverDomain nameStore;
                 for (int j = 0; j < children.size(); j++) {
                     nameStore=children.get(j);
                     if (nameStore.getDomain().equals(names[i])){
@@ -153,15 +152,15 @@ public class Nameserver implements INameserver {
         throw new StopShellException();
     }
 
-    public ArrayList<NameStore>  getChildren(){
+    public ArrayList<NameserverDomain>  getChildren(){
         return children;
     }
 
-    public void addChildren(NameStore store){
+    public void addChildren(NameserverDomain store){
         children.add(store);
     }
 
-    public void deleteChildren(NameStore store){
+    public void deleteChildren(NameserverDomain store){
         children.remove(store);
     }
 

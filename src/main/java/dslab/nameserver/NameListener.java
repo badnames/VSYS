@@ -11,7 +11,7 @@ public class NameListener implements Runnable, IListener {
     private final Socket socket;
     private BufferedReader reader;
     private PrintWriter writer;
-    private NameStore store = new NameStore(null,0,0);
+    private NameserverDomain store = new NameserverDomain(null,0,0);
 
     public NameListener(Socket socket) {
         this.socket = socket;
