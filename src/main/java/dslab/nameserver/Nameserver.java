@@ -37,34 +37,40 @@ public class Nameserver implements INameserver {
     private String domain;
 
 
-    public Nameserver(String componentId, Config config, InputStream in, PrintStream out) throws IOException {
+    public Nameserver(String componentId, Config config, InputStream in, PrintStream out) throws IOException,
+            AlreadyBoundException,
+            NotBoundException,
+            AlreadyRegisteredException,
+            InvalidDomainException {
         // TODO
         this.componentID=componentId;
         this.config=config;
         this.in=in;
         this.out=out;
 
-        this.domain = config.getString("domain");
+        port = config.getInt("registry.port");
+        host = config.getString("registry.host");
+        root_id =  config.getString("root_id");
+        domain = config.getString("domain");
 
-        register= new DispatchListener(config.getInt("registry.port"), 4, new NameRegisterFactory(domain, children));
-        listener = new DispatchListener(config.getInt("registry.port"), 4, new NameListenerFactory());
+        if (domain == null){
+            //root
+            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote());
+        } else {
+            //zone nameserver
+            //LocateRegistry.getRegistry(String host,int port), and 2) locating the object using
+            //Registry.lookup(String name), using the name given in the root id property.
+            var rootRegistry = LocateRegistry.getRegistry(host, port);
+            INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
-        shell = new Shell(in, out);
-        shell.setPrompt("[Nameserver " + config.getString("domain") + "] >>> ");
-        shell.register(this);
-
+            rootNameServerRemote.registerNameserver(domain, new NameserverRemote());
+        }
     }
 
     @Override
     public void run() {
-        // TODO
-        new Thread(register).start();
-        new Thread(listener).start();
-
         shell.run();
         shell.out().println("# "+config.getString("domain")+ " nameserver");
-
-
     }
 
     @Override
@@ -79,20 +85,7 @@ public class Nameserver implements INameserver {
                 names[i] = children.get(i).getDomain();
             }
 
-            //alphabetical sort
-            String temp;
-            for (int i = 0; i < names.length; i++) {
-                for (int j = i + 1; j < names.length; j++) {
-
-                    // to compare one string with other strings
-                    if (names[i].compareTo(names[j]) > 0) {
-                        // swapping
-                        temp = names[i];
-                        names[i] = names[j];
-                        names[j] = temp;
-                    }
-                }
-            }
+            Arrays.sort(names);
 
             for (int i = 0; i < names.length; i++) {
                 shell.out().println(i + ". " + names[i]);
@@ -113,19 +106,7 @@ public class Nameserver implements INameserver {
             }
 
             //alphabetical sort
-            String temp;
-            for (int i = 0; i < names.length; i++) {
-                for (int j = i + 1; j < names.length; j++) {
-
-                    // to compare one string with other strings
-                    if (names[i].compareTo(names[j]) > 0) {
-                        // swapping
-                        temp = names[i];
-                        names[i] = names[j];
-                        names[j] = temp;
-                    }
-                }
-            }
+            Arrays.sort(names);
 
             for (int i = 0; i < children.size(); i++) {
                 //looking for the namestore after the alphabetical sort to extract IP and PORT
@@ -146,9 +127,6 @@ public class Nameserver implements INameserver {
     @Command
     //Shutdown the nameserver and all related resources
     public void shutdown() {
-        // TODO
-        register.stop();
-        listener.stop();
         throw new StopShellException();
     }
 
