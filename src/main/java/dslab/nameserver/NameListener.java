@@ -1,7 +1,4 @@
 package dslab.nameserver;
-
-import dslab.mailbox.MessageStore;
-import dslab.util.DMAPState;
 import dslab.util.handler.IListener;
 
 import java.io.BufferedReader;
@@ -33,11 +30,15 @@ public class NameListener implements Runnable, IListener {
         writer.flush();
 
         while(!socket.isClosed()) {
-            register();
+            find();
         }
     }
 
-    public void register(){
+    //find the mailbox server for the mail and puts the mail there
+    //TODO: should be separate?
+    //TODO: separate class because thread, but syncronised how?
+    //TODO: do a boolean function to see, if the mailbox server is already registered before putting the e-mail there
+    public void find(){
 
     }
 
