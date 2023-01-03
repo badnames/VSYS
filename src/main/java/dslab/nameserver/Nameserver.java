@@ -1,6 +1,7 @@
 package dslab.nameserver;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 
 import at.ac.tuwien.dsg.orvell.Shell;
@@ -70,11 +71,32 @@ public class Nameserver implements INameserver {
     //Prints out each known nameserver (zones) in alphabetical order,
     // from the perspective of this nameserver
     public void nameservers() {
-        // TODO: alphabetical
-        for (int i = 0; i < children.size(); i++) {
-            shell.out().println(i+". "+ children.get(i).getDomain());
-        }
+        // TODO: do it for all nameservers (lookup)
+        if (!children.isEmpty()) {
+            String[] names = new String[children.size()];
+            for (int i = 0; i < children.size(); i++) {
+                names[i] = children.get(i).getDomain();
+            }
 
+            //alphabetical sort
+            String temp;
+            for (int i = 0; i < names.length; i++) {
+                for (int j = i + 1; j < names.length; j++) {
+
+                    // to compare one string with other strings
+                    if (names[i].compareTo(names[j]) > 0) {
+                        // swapping
+                        temp = names[i];
+                        names[i] = names[j];
+                        names[j] = temp;
+                    }
+                }
+            }
+
+            for (int i = 0; i < names.length; i++) {
+                shell.out().println(i + ". " + names[i]);
+            }
+        }
     }
 
     @Override
@@ -82,10 +104,41 @@ public class Nameserver implements INameserver {
     //Prints out some information about each stored mailbox server address, containing mail DOMAIN and
     //ADRESSES (IP:port), arranged by the domain in alphabetical order.
     public void addresses() {
-        // TODO
-        for (int i = 0; i < children.size(); i++) {
-            shell.out().println(i+". "+ children.get(i).getDomain()+" "+ children.get(i).getIp()+":"+ children.get(i).getPort());
+        // TODO: alphabetical
+        if (!children.isEmpty()){
+            String[] names = new String[children.size()];
+            for (int i = 0; i < children.size(); i++) {
+                names[i] = children.get(i).getDomain();
+            }
+
+            //alphabetical sort
+            String temp;
+            for (int i = 0; i < names.length; i++) {
+                for (int j = i + 1; j < names.length; j++) {
+
+                    // to compare one string with other strings
+                    if (names[i].compareTo(names[j]) > 0) {
+                        // swapping
+                        temp = names[i];
+                        names[i] = names[j];
+                        names[j] = temp;
+                    }
+                }
+            }
+
+            for (int i = 0; i < children.size(); i++) {
+                //looking for the namestore after the alphabetical sort to extract IP and PORT
+                NameStore nameStore;
+                for (int j = 0; j < children.size(); j++) {
+                    nameStore=children.get(j);
+                    if (nameStore.getDomain().equals(names[i])){
+                        shell.out().println(i+". "+ names[i]+" "+ children.get(j).getIp()+":"+ children.get(j).getPort());
+                    }
+                }
+            }
         }
+
+
     }
 
     @Override
