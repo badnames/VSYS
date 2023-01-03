@@ -1,5 +1,9 @@
 package dslab.nameserver;
 
+<<<<<<< HEAD
+=======
+import dslab.util.Config;
+>>>>>>> origin/Nameserver
 import dslab.util.handler.IListener;
 
 import java.io.BufferedReader;
