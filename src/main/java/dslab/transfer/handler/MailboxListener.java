@@ -1,7 +1,9 @@
 package dslab.transfer.handler;
 
+import dslab.nameserver.INameserverRemote;
 import dslab.transfer.DomainRegistry;
 import dslab.transfer.MailboxAddress;
+import dslab.util.Config;
 import dslab.util.Message;
 import dslab.util.handler.IListener;
 
@@ -9,17 +11,21 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.lang.reflect.Array;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.rmi.registry.LocateRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 public class MailboxListener implements IListener {
 
@@ -37,14 +43,15 @@ public class MailboxListener implements IListener {
 
     @Override
     public void run() {
-        while(true) {
+        while (true) {
             Message message = null;
             try {
                 message = queue.take();
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) {
+            }
 
             // A message with null strings means, that we should stop executing
-            if (message != null && message.equals(new Message(null, null, null, null,null))) {
+            if (message != null && message.equals(new Message(null, null, null, null, null))) {
                 return;
             }
 
@@ -78,7 +85,8 @@ public class MailboxListener implements IListener {
     }
 
     @Override
-    public void stop() {}
+    public void stop() {
+    }
 
     private Optional<String> sendMessage(PrintWriter writer, BufferedReader reader, Message message) throws IOException {
         String serverOutput = reader.readLine();
@@ -149,7 +157,7 @@ public class MailboxListener implements IListener {
         var message = new Message(originalMessage.getFrom(),
                 "mailer@" + transferServerAddress.getDomain(),
                 "error transmitting message " + originalMessage.getSubject(),
-                "Cause: " + error,null);
+                "Cause: " + error, null);
 
         try (var socket = new Socket(address.getDomain(), address.getPort());
              var writer = new PrintWriter(socket.getOutputStream());
@@ -160,7 +168,8 @@ public class MailboxListener implements IListener {
             if (sendError.isEmpty()) {
                 sendUsageDatagram(address, "mailer@" + transferServerAddress.getDomain());
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     private void sendUsageDatagram(MailboxAddress address, String sender) {
@@ -190,15 +199,42 @@ public class MailboxListener implements IListener {
                 .collect(Collectors.toList());
 
         var result = new ArrayList<MailboxAddress>();
+        Config config = new Config("ns-root");
+        int port = config.getInt("registry.port");
+        String host = config.getString("registry.host");
+        String root_id = config.getString("root_id");
 
         for (String hostname : hostnames) {
+            try {
+                List<String> zones = Arrays.asList(hostname.split("."));
+                Collections.reverse(zones);
+
+                if (zones.size() == 0) {
+                    //TODO
+                    throw new RuntimeException();
+                }
+                
+                INameserverRemote nameServerRemote = (INameserverRemote) LocateRegistry.getRegistry(host, port).lookup(root_id);
+
+                for (String zone : zones) {
+                    //vienna.earth.planet
+                    //from planet ---> to vienna
+                    if (zone.equals(zones.get(zones.size() - 1))) {
+                        String[] parsedAddress = nameServerRemote.lookup(zone).split(":");
+                        result.add(new MailboxAddress(parsedAddress[1], Integer.parseInt(parsedAddress[0])));
+                    } else {
+                        nameServerRemote = nameServerRemote.getNameserver(zone);
+                    }
+                }
+            } catch (Exception e) {
+                //TODO
+                throw new RuntimeException();
+            }
+
             if (!DomainRegistry.getInstance().hasAddress(hostname)) {
                 return null;
             }
-
-            result.add(DomainRegistry.getInstance().getAddress(hostname));
         }
-
         return result;
     }
 
