@@ -15,7 +15,7 @@ import dslab.util.handler.DispatchListener;
 public class Nameserver implements INameserver {
 
     private final Config config;
-    private final Shell shell = new Shell();
+    private final Shell shell;
 
     /**
      * Creates a new server instance.
@@ -30,26 +30,27 @@ public class Nameserver implements INameserver {
             NotBoundException,
             AlreadyRegisteredException,
             InvalidDomainException {
-        this.config=config;
 
+        this.config=config;
+        shell = new Shell(in, out);
 
         int port = config.getInt("registry.port");
         String host = config.getString("registry.host");
         String root_id = config.getString("root_id");
-        String domain = config.getString("domain");
 
-        String promtDomain = domain == null ? "root" : domain;
-        shell.setPrompt("[Nameserver " +  promtDomain + "] >>> ");
-
-        if (domain == null){
-            //root
-            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote(shell.out()));
-        } else {
+        try {
             //zone nameserver
+            String domain = config.getString("domain");
+            shell.setPrompt("[Nameserver " +  domain + "] >>> ");
+
             var rootRegistry = LocateRegistry.getRegistry(host, port);
             INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
             rootNameServerRemote.registerNameserver(domain, new NameserverRemote(shell.out()));
+        } catch (MissingResourceException e) {
+            //root
+            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote(shell.out()));
+            shell.setPrompt("[Nameserver root] >>> ");
         }
     }
 
