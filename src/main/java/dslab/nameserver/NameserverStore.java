@@ -1,5 +1,7 @@
 package dslab.nameserver;
 
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class NameserverStore {
@@ -29,6 +31,9 @@ public class NameserverStore {
         return subZones.get(domain);
     }
 
+    public Set<String> getKnownSubZones() {
+        return subZones.keySet();
+    }
 
     public void addMailbox(String domain, String remote) {
         mailboxes.put(domain, remote);

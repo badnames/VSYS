@@ -38,6 +38,9 @@ public class Nameserver implements INameserver {
         String root_id = config.getString("root_id");
         String domain = config.getString("domain");
 
+        String promtDomain = domain == null ? "root" : domain;
+        shell.setPrompt("[Nameserver " +  promtDomain + "] >>> ");
+
         if (domain == null){
             //root
             LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote(shell.out()));
@@ -53,15 +56,19 @@ public class Nameserver implements INameserver {
     @Override
     public void run() {
         shell.run();
-        shell.out().println("# "+config.getString("domain")+ " nameserver");
     }
 
     @Override
     @Command
-    //Prints out each known nameserver (zones) in alphabetical order,
+    // Prints out each known nameserver (zones) in alphabetical order,
     // from the perspective of this nameserver
     public void nameservers() {
+        List<String> subZones = NameserverStore.getInstance().getKnownSubZones()
+                .stream()
+                .sorted()
+                .collect(Collectors.toList());
 
+        subZones.forEach(zone -> shell.out().println(zone));
     }
 
     @Override
