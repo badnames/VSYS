@@ -14,7 +14,6 @@ import dslab.util.handler.DispatchListener;
 //A nameserver can communicate with the nameservers on the next lower level
 public class Nameserver implements INameserver {
 
-    private final Config config;
     private final Shell shell;
 
     /**
@@ -31,27 +30,34 @@ public class Nameserver implements INameserver {
             AlreadyRegisteredException,
             InvalidDomainException {
 
-        this.config=config;
         shell = new Shell(in, out);
+        shell.register(this);
 
         int port = config.getInt("registry.port");
         String host = config.getString("registry.host");
         String root_id = config.getString("root_id");
 
-        try {
-            //zone nameserver
-            String domain = config.getString("domain");
-            shell.setPrompt("[Nameserver " +  domain + "] >>> ");
+        Logger.setLogStream(shell.out());
 
-            var rootRegistry = LocateRegistry.getRegistry(host, port);
-            INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
+        NameserverRemote remote = new NameserverRemote();
+        INameserverRemote remoteStub = (INameserverRemote) UnicastRemoteObject.exportObject(remote, 0);
 
-            rootNameServerRemote.registerNameserver(domain, new NameserverRemote(shell.out()));
-        } catch (MissingResourceException e) {
-            //root
-            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote(shell.out()));
+        if (!config.containsKey("domain")) {
+            //we are root
+            LocateRegistry.createRegistry(port).bind(root_id, remoteStub);
             shell.setPrompt("[Nameserver root] >>> ");
+            
+            return;
         }
+
+        //we are a zone nameserver
+        String domain = config.getString("domain");
+        shell.setPrompt("[Nameserver " +  domain + "] >>> ");
+
+        var rootRegistry = LocateRegistry.getRegistry(host, port);
+        INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
+
+        rootNameServerRemote.registerNameserver(domain, remoteStub);
     }
 
     @Override
@@ -99,5 +105,4 @@ public class Nameserver implements INameserver {
         INameserver component = ComponentFactory.createNameserver(args[0], System.in, System.out);
         component.run();
     }
-
 }

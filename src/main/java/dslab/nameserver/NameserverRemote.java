@@ -1,30 +1,24 @@
 package dslab.nameserver;
 
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 
-public class NameserverRemote implements INameserverRemote {
-
-    private PrintStream logStream;
-
-    public NameserverRemote(PrintStream logStream) {
-        this.logStream = logStream;
-    }
+public class NameserverRemote implements INameserverRemote, Serializable {
 
     @Override
     //Registers a mailbox server with the given address for the given domain.
     public void registerNameserver(String domain, INameserverRemote nameserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
         String[] domains = domain.split(".");
-        if (domains.length == 1) {
-            if (NameserverStore.getInstance().getSubZone(domain) == null) {
+        if (domains.length == 0) {
+            if (NameserverStore.getInstance().getSubZone(domain) != null) {
                 throw new AlreadyRegisteredException(domain);
             }
 
             NameserverStore.getInstance().addSubZone(domain, nameserver);
+            Logger.log("Successfully registered name server " + domain);
             return;
         }
 
@@ -44,8 +38,6 @@ public class NameserverRemote implements INameserverRemote {
 
         // Propagate the register request to the next nameserver in the chain
         remote.registerNameserver(subDomain, nameserver);
-
-        log("Successfully registered name server " + subDomain);
     }
 
     @Override
@@ -79,29 +71,18 @@ public class NameserverRemote implements INameserverRemote {
         // Propagate the register request to the next nameserver in the chain
         remote.registerMailboxServer(subDomain, address);
 
-        log("Successfully registered mailbox server " + subDomain);
+        Logger.log("Successfully registered mailbox server " + subDomain);
     }
 
     @Override
     public INameserverRemote getNameserver(String zone) throws RemoteException {
-        log("Nameserver for " + zone + " was requested");
+        Logger.log("Nameserver for " + zone + " was requested");
         return NameserverStore.getInstance().getSubZone(zone);
     }
 
     @Override
     public String lookup(String domain) throws RemoteException {
-        log("Address for mailbox " + domain + " was requested");
+        Logger.log("Address for mailbox " + domain + " was requested");
         return NameserverStore.getInstance().getMailbox(domain);
-    }
-
-    private void log(String message) {
-        var currentTime = LocalDateTime.now();
-        logStream.println("[" + currentTime.getDayOfMonth()
-                + "/" + currentTime.getMonthValue()
-                + "/" + currentTime.getYear()
-                + " " + currentTime.getHour()
-                + " " + currentTime.getMinute()
-                + ":" + currentTime.getSecond()
-                + "] " + message);
     }
 }
