@@ -5,6 +5,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -27,6 +31,10 @@ import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.mailbox.handler.DMAPListenerFactory;
 import dslab.mailbox.handler.DMTPListenerFactory;
+import dslab.nameserver.AlreadyRegisteredException;
+import dslab.nameserver.INameserverRemote;
+import dslab.nameserver.InvalidDomainException;
+import dslab.nameserver.NameserverRemote;
 import dslab.util.handler.DispatchListener;
 import dslab.util.Config;
 
@@ -54,6 +62,16 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
         String serverDomain = config.getString("domain");
 
+        int port = config.getInt("registry.port");
+        String host = config.getString("registry.host");
+        String root_id = config.getString("root_id");
+
+        try {
+            nameRegistry(port, host, root_id, serverDomain);
+        } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException | NotBoundException e) {
+            throw new RuntimeException(e);
+        }
+
         PrivateKey serverPrivateKey = loadRSAKey(componentId);
 
         dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory(componentId, serverPrivateKey));
@@ -65,11 +83,18 @@ public class MailboxServer implements IMailboxServer, Runnable {
     }
 
     @Override
-    public void run() {
+    public void run()  {
         new Thread(dmapDispatcher).start();
         new Thread(dmtpDispatcher).start();
 
         shell.run();
+    }
+
+    public void nameRegistry(int port, String host, String root_id, String domain) throws RemoteException, AlreadyRegisteredException, InvalidDomainException, NotBoundException {
+        var rootRegistry = LocateRegistry.getRegistry(host, port);
+        INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
+
+        rootNameServerRemote.registerMailboxServer(domain, host+":"+port);
     }
 
     @Override
