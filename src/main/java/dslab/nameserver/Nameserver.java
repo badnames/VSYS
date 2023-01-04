@@ -1,7 +1,12 @@
 package dslab.nameserver;
 
 import java.io.*;
-import java.util.ArrayList;
+import java.rmi.AlreadyBoundException;
+import java.rmi.NotBoundException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.server.UnicastRemoteObject;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
