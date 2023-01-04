@@ -46,4 +46,8 @@ public class NameserverStore {
     public String getMailbox(String domain) {
         return mailboxes.get(domain);
     }
+
+    public Set<String> getKnownMailboxes() {
+        return mailboxes.keySet();
+    }
 }

@@ -76,8 +76,15 @@ public class Nameserver implements INameserver {
     //Prints out some information about each stored mailbox server address, containing mail DOMAIN and
     //ADRESSES (IP:port), arranged by the domain in alphabetical order.
     public void addresses() {
+        List<String> mailboxes = NameserverStore.getInstance().getKnownMailboxes()
+                .stream()
+                .sorted()
+                .collect(Collectors.toList());
 
-
+        mailboxes.forEach(mailbox -> {
+            String address = NameserverStore.getInstance().getMailbox(mailbox);
+            shell.out().println(mailbox + " " + address);
+        });
     }
 
     @Override
@@ -86,6 +93,7 @@ public class Nameserver implements INameserver {
     public void shutdown() {
         throw new StopShellException();
     }
+
     public static void main(String[] args) throws Exception {
         INameserver component = ComponentFactory.createNameserver(args[0], System.in, System.out);
         component.run();
