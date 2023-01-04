@@ -55,7 +55,7 @@ public class Nameserver implements INameserver {
 
         if (domain == null){
             //root
-            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote());
+            LocateRegistry.createRegistry(port).bind(root_id, new NameserverRemote(shell.out()));
         } else {
             //zone nameserver
             //LocateRegistry.getRegistry(String host,int port), and 2) locating the object using
@@ -63,7 +63,7 @@ public class Nameserver implements INameserver {
             var rootRegistry = LocateRegistry.getRegistry(host, port);
             INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
-            rootNameServerRemote.registerNameserver(domain, new NameserverRemote());
+            rootNameServerRemote.registerNameserver(domain, new NameserverRemote(shell.out()));
         }
     }
 
