@@ -44,7 +44,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
      * @param in the input stream to read console input from
      * @param out the output stream to write console output to
      */
-    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateException {
+    public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
         this.config = config;
 
         var userPasswordMap = loadUsers();
@@ -109,7 +109,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
         return result;
     }
 
-    private PrivateKey loadRSAKey(String componentId) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateException {
+    private PrivateKey loadRSAKey(String componentId) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
         FileInputStream inputStream = new FileInputStream("keys/server/" + componentId + ".der");
         long fileSize = inputStream.getChannel().size();
         byte[] rsaPrivateKey = new byte[(int) fileSize];
