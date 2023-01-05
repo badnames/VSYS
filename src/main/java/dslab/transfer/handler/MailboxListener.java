@@ -53,8 +53,12 @@ public class MailboxListener implements IListener {
             } catch (InterruptedException ignored) {
             }
 
+            if (message == null) {
+                return;
+            }
+
             // A message with null strings means, that we should stop executing
-            if (message != null && message.equals(new Message(null, null, null, null, null))) {
+            if (message.equals(new Message(null, null, null, null, null))) {
                 return;
             }
 
