@@ -3,6 +3,7 @@ package dslab.nameserver;
 import java.io.*;
 import java.rmi.AlreadyBoundException;
 import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
@@ -62,7 +63,11 @@ public class Nameserver implements INameserver {
         var rootRegistry = LocateRegistry.getRegistry(host, port);
         INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
-        rootNameServerRemote.registerNameserver(domain, remoteStub);
+        try {
+            rootNameServerRemote.registerNameserver(domain, remoteStub);
+        } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException e) {
+            shell.err().println("Failed to register with root nameserver!");
+        }
     }
 
     @Override

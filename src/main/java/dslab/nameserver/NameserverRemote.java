@@ -1,20 +1,23 @@
 package dslab.nameserver;
 
+import javax.management.InvalidAttributeValueException;
+import javax.swing.text.html.Option;
 import java.io.PrintStream;
 import java.io.Serializable;
 import java.rmi.RemoteException;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Optional;
 
 public class NameserverRemote implements INameserverRemote, Serializable {
 
     @Override
     //Registers a mailbox server with the given address for the given domain.
     public void registerNameserver(String domain, INameserverRemote nameserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
-        String[] domains = domain.split(".");
-        if (domains.length == 0) {
+        String[] domains = domain.split("\\.");
+        if (domains.length == 1) {
             if (NameserverStore.getInstance().getSubZone(domain) != null) {
-                throw new AlreadyRegisteredException(domain);
+                throw new AlreadyRegisteredException(domain + " was already registered!");
             }
 
             NameserverStore.getInstance().addSubZone(domain, nameserver);
@@ -30,14 +33,23 @@ public class NameserverRemote implements INameserverRemote, Serializable {
 
         // The next server does not need the last part of the domain.
         // "vienna.earth.planet" -> "vienna.earth"
-        String subDomain = String.valueOf(
-                Arrays.stream(domains)
-                        .limit(domains.length - 1)
-                        .reduce((d1, d2) -> d1 + "." + d2)
-        );
+        Optional<String> subDomain = Arrays.stream(domains)
+                .limit(domains.length - 1)
+                .reduce((d1, d2) -> d1 + "." + d2);
 
-        // Propagate the register request to the next nameserver in the chain
-        remote.registerNameserver(subDomain, nameserver);
+        if (subDomain.isEmpty()) {
+            throw new InvalidDomainException("Could not recombine domain parts.");
+        }
+
+        try {
+            // Propagate the register request to the next nameserver in the chain
+            remote.registerNameserver(subDomain.get(), nameserver);
+        } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException e) {
+            Logger.log("Error registering nameserver " + domain + " " + e.getMessage());
+            throw e;
+        }
+
+        Logger.log("Successfully registered nameserver " + domain);
     }
 
     @Override
@@ -45,12 +57,13 @@ public class NameserverRemote implements INameserverRemote, Serializable {
     //     * 'earth' on the remote object of zone 'planet', the call returns the reference to the nameserver of the zone
     //     * 'earth.planet'.
     public void registerMailboxServer(String domain, String address) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
-        String[] domains = domain.split(".");
+        String[] domains = domain.split("\\.");
         if (domains.length == 1) {
-            if (NameserverStore.getInstance().getSubZone(domain) == null)
+            if (NameserverStore.getInstance().getMailbox(domain) != null)
                 throw new AlreadyRegisteredException("domain");
 
             NameserverStore.getInstance().addMailbox(domain, address);
+            Logger.log("Successfully registered mailbox server " + domain);
             return;
         }
 
@@ -62,16 +75,23 @@ public class NameserverRemote implements INameserverRemote, Serializable {
 
         // The next server does not need the last part of the domain.
         // "vienna.earth.planet" -> "vienna.earth"
-        String subDomain = String.valueOf(
-                Arrays.stream(domains)
-                        .limit(domains.length - 1)
-                        .reduce((d1, d2) -> d1 + "." + d2)
-        );
+        Optional<String> subDomain = Arrays.stream(domains)
+                .limit(domains.length - 1)
+                .reduce((d1, d2) -> d1 + "." + d2);
 
-        // Propagate the register request to the next nameserver in the chain
-        remote.registerMailboxServer(subDomain, address);
+        if (subDomain.isEmpty()) {
+            throw new InvalidDomainException("Could not recombine domain parts.");
+        }
 
-        Logger.log("Successfully registered mailbox server " + subDomain);
+        try {
+            // Propagate the register request to the next nameserver in the chain
+            remote.registerMailboxServer(subDomain.get(), address);
+        } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException e) {
+            Logger.log("Error registering mailbox server " + domain + " " + e.getMessage());
+            throw e;
+        }
+
+        Logger.log("Successfully registered mailbox server " + domain);
     }
 
     @Override
