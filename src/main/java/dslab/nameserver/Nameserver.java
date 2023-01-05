@@ -2,9 +2,11 @@ package dslab.nameserver;
 
 import java.io.*;
 import java.rmi.AlreadyBoundException;
+import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,6 +23,9 @@ import dslab.util.handler.DispatchListener;
 public class Nameserver implements INameserver {
 
     private final Shell shell;
+    private final Config config;
+    private NameserverRemote remote;
+    private Registry registry;
 
     /**
      * Creates a new server instance.
@@ -30,48 +35,60 @@ public class Nameserver implements INameserver {
      * @param in the input stream to read console input from
      * @param out the output stream to write console output to
      */
-    public Nameserver(String componentId, Config config, InputStream in, PrintStream out) throws IOException,
-            AlreadyBoundException,
-            NotBoundException,
-            AlreadyRegisteredException,
-            InvalidDomainException {
+    public Nameserver(String componentId, Config config, InputStream in, PrintStream out) {
 
         shell = new Shell(in, out);
         shell.register(this);
-
-        int port = config.getInt("registry.port");
-        String host = config.getString("registry.host");
-        String root_id = config.getString("root_id");
-
         Logger.setLogStream(shell.out());
 
-        NameserverRemote remote = new NameserverRemote();
-        INameserverRemote remoteStub = (INameserverRemote) UnicastRemoteObject.exportObject(remote, 0);
-
-        if (!config.containsKey("domain")) {
-            //we are root
-            LocateRegistry.createRegistry(port).bind(root_id, remoteStub);
-            shell.setPrompt("[Nameserver root] >>> ");
-            
-            return;
-        }
-
-        //we are a zone nameserver
-        String domain = config.getString("domain");
-        shell.setPrompt("[Nameserver " +  domain + "] >>> ");
-
-        var rootRegistry = LocateRegistry.getRegistry(host, port);
-        INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
-
-        try {
-            rootNameServerRemote.registerNameserver(domain, remoteStub);
-        } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException e) {
-            shell.err().println("Failed to register with root nameserver!");
-        }
+        this.config = config;
     }
 
     @Override
     public void run() {
+        int port = config.getInt("registry.port");
+        String host = config.getString("registry.host");
+        String root_id = config.getString("root_id");
+
+
+        remote = new NameserverRemote();
+        INameserverRemote remoteStub = null;
+
+        try {
+            remoteStub = (INameserverRemote) UnicastRemoteObject.exportObject(remote, 0);
+        } catch (RemoteException e) {
+            shell.err().println("Unable to export remote object.");
+            return;
+        }
+
+        if (!config.containsKey("domain")) {
+            //we are root
+            try {
+                registry = LocateRegistry.createRegistry(port);
+                registry.bind(root_id, remoteStub);
+            } catch (RemoteException | AlreadyBoundException e) {
+                shell.err().println("Unable to bind remote object.");
+                return;
+            }
+
+            shell.setPrompt("[Nameserver root] >>> ");
+        } else {
+            //we are a zone nameserver
+            String domain = config.getString("domain");
+            shell.setPrompt("[Nameserver " + domain + "] >>> ");
+
+            Registry rootRegistry = null;
+            INameserverRemote rootNameServerRemote = null;
+
+            try {
+                rootRegistry = LocateRegistry.getRegistry(host, port);
+                rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
+                rootNameServerRemote.registerNameserver(domain, remoteStub);
+            } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException | NotBoundException e) {
+                shell.err().println("Failed to register with root nameserver!");
+            }
+        }
+
         shell.run();
     }
 
@@ -108,6 +125,16 @@ public class Nameserver implements INameserver {
     @Command
     //Shutdown the nameserver and all related resources
     public void shutdown() {
+        try {
+            if (!config.containsKey("domain")) {
+                //we are root
+                UnicastRemoteObject.unexportObject(registry, true);
+            }
+
+            UnicastRemoteObject.unexportObject(remote, true);
+        } catch (NoSuchObjectException ignored) {}
+
+
         throw new StopShellException();
     }
 
