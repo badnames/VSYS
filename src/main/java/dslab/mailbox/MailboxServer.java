@@ -4,6 +4,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
+import java.net.InetAddress;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
@@ -55,13 +56,18 @@ public class MailboxServer implements IMailboxServer, Runnable {
         shell.register(this);
 
         String serverDomain = config.getString("domain");
+        String serverHost = InetAddress.getLocalHost().getHostAddress();
+        int serverPort =  config.getInt("dmtp.tcp.port");
 
-        int port = config.getInt("registry.port");
-        String host = config.getString("registry.host");
+        int nameserverPort = config.getInt("registry.port");
+        String nameserverHost = config.getString("registry.host");
         String root_id = config.getString("root_id");
 
         try {
-            registerWithNameserver(port, host, root_id, serverDomain);
+            var rootRegistry = LocateRegistry.getRegistry(nameserverHost, nameserverPort);
+            INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
+
+            rootNameServerRemote.registerMailboxServer(serverDomain, serverHost+":"+serverPort);
         } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException | NotBoundException e) {
             shell.err().println("ERROR registering with Nameserver: " + e);
         }
@@ -79,13 +85,6 @@ public class MailboxServer implements IMailboxServer, Runnable {
         new Thread(dmtpDispatcher).start();
 
         shell.run();
-    }
-
-    public void registerWithNameserver(int port, String host, String root_id, String domain) throws RemoteException, AlreadyRegisteredException, InvalidDomainException, NotBoundException {
-        var rootRegistry = LocateRegistry.getRegistry(host, port);
-        INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
-
-        rootNameServerRemote.registerMailboxServer(domain, host+":"+port);
     }
 
     @Override
