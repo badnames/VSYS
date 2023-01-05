@@ -113,8 +113,12 @@ public class MailboxServer implements IMailboxServer, Runnable {
         FileInputStream inputStream = new FileInputStream("keys/server/" + componentId + ".der");
         long fileSize = inputStream.getChannel().size();
         byte[] rsaPrivateKey = new byte[(int) fileSize];
-        inputStream.read(rsaPrivateKey);
+        long bytesRead = inputStream.read(rsaPrivateKey);
         inputStream.close();
+
+        if (bytesRead != fileSize) {
+            throw new IOException("Data read from file is not equal to the expected file size!");
+        }
 
         PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(rsaPrivateKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
