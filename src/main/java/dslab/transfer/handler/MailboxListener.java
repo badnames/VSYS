@@ -249,7 +249,7 @@ public class MailboxListener implements IListener {
             String[] parsedAddress = nameServerRemote
                     .lookup(zoneQueue.removeLast())
                     .split(":");
-            return new MailboxAddress(parsedAddress[1], Integer.parseInt(parsedAddress[0]));
+            return new MailboxAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
         } catch (Exception e) {
             return null;
         }
