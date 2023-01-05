@@ -8,11 +8,11 @@ public class Logger {
 
     public static void log(String message) {
         var currentTime = LocalDateTime.now();
-        logStream.println("[" + currentTime.getDayOfMonth()
-                + "/" + currentTime.getMonthValue()
-                + "/" + currentTime.getYear()
+        logStream.println("[" + currentTime.getYear()
+                + "-" + currentTime.getMonthValue()
+                + "-" + currentTime.getDayOfMonth()
                 + " " + currentTime.getHour()
-                + " " + currentTime.getMinute()
+                + ":" + currentTime.getMinute()
                 + ":" + currentTime.getSecond()
                 + "] " + message);
     }
