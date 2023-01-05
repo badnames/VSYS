@@ -1,27 +1,18 @@
 package dslab.mailbox;
 
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.rmi.AlreadyBoundException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.RSAPrivateCrtKeySpec;
-import java.security.spec.RSAPrivateKeySpec;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.HashMap;
 import java.util.ResourceBundle;
 
@@ -34,7 +25,6 @@ import dslab.mailbox.handler.DMTPListenerFactory;
 import dslab.nameserver.AlreadyRegisteredException;
 import dslab.nameserver.INameserverRemote;
 import dslab.nameserver.InvalidDomainException;
-import dslab.nameserver.NameserverRemote;
 import dslab.util.handler.DispatchListener;
 import dslab.util.Config;
 
@@ -60,6 +50,10 @@ public class MailboxServer implements IMailboxServer, Runnable {
         var userPasswordMap = loadUsers();
         MessageStore.getInstance().init(userPasswordMap);
 
+        shell = new Shell(in, out);
+        shell.setPrompt("[Mailbox " + config.getString("domain") + "] >>> ");
+        shell.register(this);
+
         String serverDomain = config.getString("domain");
 
         int port = config.getInt("registry.port");
@@ -67,9 +61,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
         String root_id = config.getString("root_id");
 
         try {
-            nameRegistry(port, host, root_id, serverDomain);
+            registerWithNameserver(port, host, root_id, serverDomain);
         } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException | NotBoundException e) {
-            throw new RuntimeException(e);
+            shell.err().println("ERROR registering with Nameserver: " + e);
         }
 
         PrivateKey serverPrivateKey = loadRSAKey(componentId);
@@ -77,9 +71,6 @@ public class MailboxServer implements IMailboxServer, Runnable {
         dmapDispatcher = new DispatchListener(config.getInt("dmap.tcp.port"), 4, new DMAPListenerFactory(componentId, serverPrivateKey));
         dmtpDispatcher = new DispatchListener(config.getInt("dmtp.tcp.port"), 4, new DMTPListenerFactory(serverDomain));
 
-        shell = new Shell(in, out);
-        shell.setPrompt("[Mailbox " + config.getString("domain") + "] >>> ");
-        shell.register(this);
     }
 
     @Override
@@ -90,7 +81,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
         shell.run();
     }
 
-    public void nameRegistry(int port, String host, String root_id, String domain) throws RemoteException, AlreadyRegisteredException, InvalidDomainException, NotBoundException {
+    public void registerWithNameserver(int port, String host, String root_id, String domain) throws RemoteException, AlreadyRegisteredException, InvalidDomainException, NotBoundException {
         var rootRegistry = LocateRegistry.getRegistry(host, port);
         INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
