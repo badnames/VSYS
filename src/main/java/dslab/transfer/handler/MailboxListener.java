@@ -18,9 +18,12 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.rmi.registry.LocateRegistry;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
@@ -199,43 +202,53 @@ public class MailboxListener implements IListener {
                 .collect(Collectors.toList());
 
         var result = new ArrayList<MailboxAddress>();
+
+        for (String hostname : hostnames) {
+            MailboxAddress address = lookupMailbox(hostname, message);
+
+            if (address == null) {
+                return null;
+            }
+
+            result.add(address);
+        }
+
+        return result;
+    }
+
+    private MailboxAddress lookupMailbox(String address, Message message) {
         Config config = new Config("ns-root");
         int port = config.getInt("registry.port");
         String host = config.getString("registry.host");
         String root_id = config.getString("root_id");
 
-        for (String hostname : hostnames) {
-            try {
-                List<String> zones = Arrays.asList(hostname.split("."));
-                Collections.reverse(zones);
+        // If we get e.g. vienna.earth.planet we need to contact the nameservers
+        // vienna and earth, then request the mailbox planet.
+        String[] zones = address.split("\\.");
 
-                if (zones.size() == 0) {
-                    //TODO
-                    throw new RuntimeException();
-                }
-
-                INameserverRemote nameServerRemote = (INameserverRemote) LocateRegistry.getRegistry(host, port).lookup(root_id);
-
-                for (String zone : zones) {
-                    //vienna.earth.planet
-                    //from planet ---> to vienna
-                    if (zone.equals(zones.get(zones.size() - 1))) {
-                        String[] parsedAddress = nameServerRemote.lookup(zone).split(":");
-                        result.add(new MailboxAddress(parsedAddress[1], Integer.parseInt(parsedAddress[0])));
-                    } else {
-                        nameServerRemote = nameServerRemote.getNameserver(zone);
-                    }
-                }
-            } catch (Exception e) {
-                //TODO
-                throw new RuntimeException();
-            }
-
-            if (!DomainRegistry.getInstance().hasAddress(hostname)) {
+        try {
+            if (zones.length == 0) {
                 return null;
             }
+
+            INameserverRemote nameServerRemote = (INameserverRemote) LocateRegistry.getRegistry(host, port).lookup(root_id);
+
+            Deque<String> zoneQueue = new ArrayDeque<>(List.of(zones));
+            //it handle the zones from the last like by "vienna.earth.planet" starts with "planet", till it reach the last zone
+            while (zoneQueue.size() > 1) {
+                String zone = zoneQueue.removeLast();
+                nameServerRemote = nameServerRemote.getNameserver(zone);
+            }
+
+            // The last element in the queue is the mailboxes' address.
+            // Therefore, we need to request it individually from the last nameserver.
+            String[] parsedAddress = nameServerRemote
+                    .lookup(zoneQueue.removeLast())
+                    .split(":");
+            return new MailboxAddress(parsedAddress[1], Integer.parseInt(parsedAddress[0]));
+        } catch (Exception e) {
+            return null;
         }
-        return result;
     }
 
     private MailboxAddress getSenderAddress(Message message) {
