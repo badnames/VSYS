@@ -56,9 +56,9 @@ public class MessageClient implements IMessageClient, Runnable {
      * Creates a new client instance.
      *
      * @param ignoredComponentId the id of the component that corresponds to the Config resource
-     * @param config      the component config
-     * @param in          the input stream to read console input from
-     * @param out         the output stream to write console output to
+     * @param config             the component config
+     * @param in                 the input stream to read console input from
+     * @param out                the output stream to write console output to
      */
     public MessageClient(String ignoredComponentId, Config config, InputStream in, PrintStream out) throws IOException {
         this.config = config;
@@ -75,28 +75,35 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void inbox() {
+        //if no connection establish dmap connection
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (connectDMAP()) return;
         }
 
         try {
+            //setting up reader and writer
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
-            List<String> messages = new ArrayList<>();
-
             String toSend = "list";
+            //encrypting message
             String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
 
+            //sending message
             writer.println(toSendEncrypted);
             writer.flush();
 
+            //reading message
             String response = reader.readLine();
 
+            //decrypting message
             String decryptedInputOptional = Base64AES.decrypt(response, aesParameters);
+            String[] decryptedReadLines = decryptedInputOptional.split("\n");
 
-            String[] listLines = decryptedInputOptional.split("\n");
-            for (var line : listLines) {
+            //parsing messages
+            List<String> messages = new ArrayList<>();
+
+            for (var line : decryptedReadLines) {
                 if (line.startsWith("error")) throw new IOException();
                 if (line.startsWith("ok")) continue;
                 messages.add(line);
@@ -107,6 +114,7 @@ public class MessageClient implements IMessageClient, Runnable {
                     .map(String::trim)
                     .collect(Collectors.toList());
 
+            //sending show for each message
             for (int i = 0; i < messages.size(); i++) {
                 toSend = "show " + messageIds.get(i);
                 toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
@@ -133,7 +141,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             try {
                 mailboxSocket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             mailboxSocket = null;
         }
     }
@@ -141,20 +150,26 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void delete(String id) {
+        //if no connection establish dmap connection
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (connectDMAP()) return;
         }
 
         try {
+            //setting up reader and writer
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
             String toSend = "delete " + id;
+            //encrypting message
             String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+            //sending message
             writer.println(toSendEncrypted);
             writer.flush();
 
+            //reading response
             String response = reader.readLine();
+            //decrypting response
             String responseDecrypted = Base64AES.decrypt(response, aesParameters);
             if (!responseDecrypted.equals("ok")) {
                 shell.err().println(responseDecrypted);
@@ -162,10 +177,10 @@ public class MessageClient implements IMessageClient, Runnable {
 
         } catch (IOException | Base64CryptoException e) {
             shell.err().println("Error deleting message " + id);
-
             try {
                 mailboxSocket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             mailboxSocket = null;
         }
     }
@@ -173,27 +188,35 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void verify(String id) {
-        // TODO
+        //if no connection establish connection
         if (mailboxSocket == null || mailboxSocket.isClosed()) {
             if (connectDMAP()) return;
         }
 
         try {
+            //setting up reader and writer
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
+
             String toSend = "show " + id;
+            //encrypting message
             String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+
+            //sending message
             writer.println(toSendEncrypted);
             writer.flush();
 
-            String compHash = null;
+
+            //reading response
+            String response = reader.readLine();
+            //decrypting response
+            String responseDecrypted = Base64AES.decrypt(response, aesParameters);
+            String[] responseLines = responseDecrypted.split("\n");
 
             Message message = new Message("", "", "", "", "");
+            String recvHash = null;
 
-            String response = reader.readLine();
-            String responseOptional = Base64AES.decrypt(response, aesParameters);
-            String[] responseLines = responseOptional.split("\n");
-
+            //parsing message into object
             for (var line : responseLines) {
                 if (line.startsWith("error")) throw new IOException();
                 if (line.equals("ok")) continue;
@@ -208,22 +231,23 @@ public class MessageClient implements IMessageClient, Runnable {
                 } else if (line.startsWith("data")) {
                     message.setData(line.substring(5));
                 } else if (line.startsWith("hash")) {
-                    compHash = line.substring(5);
+                    recvHash = line.substring(5);
                 }
             }
 
-            if (compHash == null) {
+            if (recvHash == null) {
                 shell.out().println("HMAC not found, unknown validity!");
             }
 
-            String hash = calculateBase64HMAC(message.getFrom(), message.getSubject(), message.getData());
+            //calculate compHash
+            String compHash = calculateBase64HMAC(message.getFrom(), message.getSubject(), message.getData());
 
-            if (hash.equals(compHash)) {
+            //comparing hashes
+            if (compHash.equals(recvHash)) {
                 shell.out().println("Valid message!");
             } else {
                 shell.out().println("Invalid message!");
             }
-
 
         } catch (IOException | NoSuchAlgorithmException | InvalidKeyException | Base64CryptoException e) {
             shell.err().println("Error verifying message " + id);
@@ -234,14 +258,18 @@ public class MessageClient implements IMessageClient, Runnable {
     @Override
     public void msg(String to, String subject, String data) {
         try {
+            //if no connection establish connection
             if (transferSocket == null || transferSocket.isClosed()) {
                 transferSocket = new Socket(config.getString("transfer.host"), config.getInt("transfer.port"));
             }
+
+            //establishing readers and writers
             var writer = new PrintWriter(transferSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(transferSocket.getInputStream()));
 
-            String serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok DMTP2.0")) {
+            //establishing dmtp connection to a server to send a message
+            String serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok DMTP2.0")) {
                 transferSocket.close();
                 shell.err().println("error ok DMTP2.0");
                 return;
@@ -249,8 +277,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("begin");
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error begin");
                 return;
@@ -258,8 +286,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("to " + to);
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.startsWith("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.startsWith("ok")) {
                 transferSocket.close();
                 shell.err().println("error to");
                 return;
@@ -267,8 +295,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("from " + config.getString("transfer.email"));
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error from");
                 return;
@@ -276,8 +304,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("subject " + subject);
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error subject");
                 return;
@@ -285,8 +313,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("data " + data);
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error data");
                 return;
@@ -296,8 +324,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("hash " + hash);
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error hash");
                 return;
@@ -305,8 +333,8 @@ public class MessageClient implements IMessageClient, Runnable {
 
             writer.println("send");
             writer.flush();
-            serverOutput = reader.readLine();
-            if (!serverOutput.equals("ok")) {
+            serverResponse = reader.readLine();
+            if (!serverResponse.equals("ok")) {
                 transferSocket.close();
                 shell.err().println("error send");
                 return;
@@ -320,36 +348,40 @@ public class MessageClient implements IMessageClient, Runnable {
     @Command
     @Override
     public void shutdown() {
+        //closing all sockets if not closed
         try {
-            if (transferSocket != null) transferSocket.close();
-            if (mailboxSocket != null) mailboxSocket.close();
+            if (transferSocket != null) {
+                transferSocket.close();
+            }
+            if (mailboxSocket != null) {
+                mailboxSocket.close();
+            }
         } catch (IOException ignored) {
         }
-
         throw new StopShellException();
     }
 
     public void startSecure(PrintWriter writer, BufferedReader reader) throws IOException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, InvalidKeySpecException, InvalidKeyException, InvalidAlgorithmParameterException {
-        String serverOutput;
+        //sending startsecure
         writer.println("startsecure");
         writer.flush();
 
-        serverOutput = reader.readLine();
+        //reading response
+        String serverOutput = reader.readLine();
+        //parsing and if error terminate connection
         if (!serverOutput.startsWith("ok") || !(serverOutput.chars().filter(ch -> ch == ' ').count() == 1)) {
             mailboxSocket.close();
             shell.err().println("error begin");
             return;
         }
 
-        SecureRandom secRandom = new SecureRandom();
-
         //reading server public key and creating a publicKey Object
         String compId = serverOutput.substring(3);
         FileInputStream inputStream = new FileInputStream("keys/client/" + compId + "_pub.der");
         long fileSize = inputStream.getChannel().size();
-
         byte[] rsaPublicKey = new byte[(int) fileSize];
         int bytesRead = inputStream.read(rsaPublicKey);
+
         if (bytesRead != fileSize) {
             mailboxSocket.close();
             shell.err().println("error reading key file");
@@ -357,13 +389,14 @@ public class MessageClient implements IMessageClient, Runnable {
         }
 
         inputStream.close();
-
         X509EncodedKeySpec keySpec = new X509EncodedKeySpec(rsaPublicKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
         PublicKey publicKey = keyFactory.generatePublic(keySpec);
 
+
         //Generating a random clientChallenge and converting it to a String
         byte[] clientChallenge = new byte[32];
+        SecureRandom secRandom = new SecureRandom();
         secRandom.nextBytes(clientChallenge);
         String clientChallengeString = Base64.getEncoder().encodeToString(clientChallenge);
 
@@ -425,8 +458,10 @@ public class MessageClient implements IMessageClient, Runnable {
         }
     }
 
-    // returns true if an error occurred
+    // returns true if connected successfully
     private boolean connectDMAP() {
+
+        //creating mailbox socket
         try {
             mailboxSocket = new Socket(config.getString("mailbox.host"), config.getInt("mailbox.port"));
         } catch (IOException e) {
@@ -435,39 +470,49 @@ public class MessageClient implements IMessageClient, Runnable {
         }
 
         try {
+            //setting up reader and writer
             var writer = new PrintWriter(mailboxSocket.getOutputStream());
             var reader = new BufferedReader(new InputStreamReader(mailboxSocket.getInputStream()));
 
-            String line = reader.readLine();
+            //reading line
+            String recvLine = reader.readLine();
 
-
-            if (!line.equals("ok DMAP2.0")) {
+            //parsing line, exit if error
+            if (!recvLine.equals("ok DMAP2.0")) {
                 shell.err().println("Protocol error");
                 throw new IOException();
             }
 
+            //starting secure encrypted connection
             startSecure(writer, reader);
 
             String toSend = "login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password");
+
+            //encrypting message
             String toSendEncrypted = Base64AES.encrypt(toSend, aesParameters);
+            //sending message
             writer.println(toSendEncrypted);
             writer.flush();
 
-            line = reader.readLine();
-            String decryptedInputOptional = Base64AES.decrypt(line, aesParameters);
+            //receiving message
+            recvLine = reader.readLine();
+            //decrypting message
+            String decryptedInputOptional = Base64AES.decrypt(recvLine, aesParameters);
 
+            //checking message exit if error
             if (!decryptedInputOptional.equals("ok")) {
                 shell.err().println("Invalid credentials");
                 throw new IOException();
             }
         } catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException |
-                 BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException
-                 | Base64CryptoException e) {
+                BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException
+                | Base64CryptoException e) {
 
             shell.err().println("Could not login to mailbox!");
             try {
                 mailboxSocket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             mailboxSocket = null;
             return true;
         }
@@ -475,21 +520,28 @@ public class MessageClient implements IMessageClient, Runnable {
         return false;
     }
 
-
     private String calculateBase64HMAC(String to, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
+        //reading secret key
         SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));
+        //setting MAC to SHA256
         Mac mac = Mac.getInstance("HmacSHA256");
+        //initializing mac
         mac.init(temp);
 
+        //creating message
         String msg = String.join("\n", config.getString("transfer.email"), to, subject, data);
+        //converting to array
         byte[] bytes = msg.getBytes();
+        //creating macResult from messsage
         byte[] macResult = mac.doFinal(bytes);
+        //encoding macResult Base64
         byte[] decodedBytes = Base64.getEncoder().encode(macResult);
 
         return new String(decodedBytes, StandardCharsets.UTF_8);
     }
 
     public static void main(String[] args) throws Exception {
+        //creating and running server
         IMessageClient client = ComponentFactory.createMessageClient(args[0], System.in, System.out);
         client.run();
     }

@@ -11,7 +11,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.lang.reflect.Array;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
@@ -21,14 +20,11 @@ import java.rmi.registry.LocateRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.stream.Collectors;
-import java.util.Arrays;
 
 public class MailboxListener implements IListener {
 
@@ -62,7 +58,7 @@ public class MailboxListener implements IListener {
                 return;
             }
 
-            var addresses = getMailboxAddresses(message);
+            List<MailboxAddress> addresses = getMailboxAddresses(message);
 
             if (addresses == null) {
                 sendErrorMessage("mailbox not known", message);
@@ -194,8 +190,6 @@ public class MailboxListener implements IListener {
         } catch (IOException e) {
             System.err.println("Could not send usage datagram: " + e.getMessage());
         }
-
-
     }
 
     private List<MailboxAddress> getMailboxAddresses(Message message) {
@@ -213,10 +207,8 @@ public class MailboxListener implements IListener {
             if (address == null) {
                 return null;
             }
-
             result.add(address);
         }
-
         return result;
     }
 
@@ -249,6 +241,7 @@ public class MailboxListener implements IListener {
             String[] parsedAddress = nameServerRemote
                     .lookup(zoneQueue.removeLast())
                     .split(":");
+
             return new MailboxAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
         } catch (Exception e) {
             return null;

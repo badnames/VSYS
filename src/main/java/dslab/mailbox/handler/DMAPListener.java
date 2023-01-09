@@ -15,18 +15,15 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.util.Base64;
-import java.util.Optional;
 
 public class DMAPListener implements Runnable, IListener {
     private final Socket socket;
@@ -55,14 +52,17 @@ public class DMAPListener implements Runnable, IListener {
         writer.println("ok DMAP2.0");
         writer.flush();
 
+        //setting up message store
         MessageStore store = MessageStore.getInstance();
 
         AESParameters aesParameters = null;
 
+        //as long as socket is not closed
         while(!socket.isClosed()) {
             String input;
 
             try {
+                //reading response
                 input = reader.readLine();
             } catch (IOException e) {
                 System.err.println("Error reading input from socket!");
@@ -86,6 +86,7 @@ public class DMAPListener implements Runnable, IListener {
 
             String response;
 
+            //switch case for different states like logging in and encrypting
             switch (state) {
                 case WAITING:
                     response = parseWaitingState(input, store);
@@ -128,6 +129,7 @@ public class DMAPListener implements Runnable, IListener {
                     }
 
                     try {
+                        //AES Decrypting message
                         String decryptedInput = Base64AES.decrypt(input, aesParameters);
                         response = parseWaitingState(decryptedInput, store);
                     } catch (Base64CryptoException e) {
@@ -140,7 +142,9 @@ public class DMAPListener implements Runnable, IListener {
                     }
 
                     try {
+                        //AES Encrypting message
                         String responseEncrypted = Base64AES.encrypt(response, aesParameters);
+                        //sending message
                         writer.println(responseEncrypted);
                     } catch (Base64CryptoException e) {
                         stop();
@@ -157,10 +161,14 @@ public class DMAPListener implements Runnable, IListener {
                     }
 
                     try {
+                        //decrypting response
                         String decryptedInput = Base64AES.decrypt(input, aesParameters);
                         response = parseLoggedInState(decryptedInput, username, store);
 
+                        //encrypting response
                         String responseEncrypted = Base64AES.encrypt(response, aesParameters);
+
+                        //sending response
                         writer.println(responseEncrypted);
                     } catch (Base64CryptoException e) {
                         stop();
@@ -172,7 +180,6 @@ public class DMAPListener implements Runnable, IListener {
                     }
                     break;
             }
-
             writer.flush();
         }
     }
@@ -210,6 +217,7 @@ public class DMAPListener implements Runnable, IListener {
         return "error protocol error";
     }
 
+    // Logic for deciding what happens next based on input
     private String parseLoggedInState(String input, String username, MessageStore store) {
         if (input.equals("list")) {
             return listMessages(username, store);
@@ -242,15 +250,18 @@ public class DMAPListener implements Runnable, IListener {
     }
 
     private AESParameters parseAuthenticatingState(String input, PrivateKey privateKey) throws IOException {
+        //Base64 decoding input
         byte[] inputDecoded = Base64.getDecoder().decode(input);
-        String decryptedInput;
+        String decryptedInputString;
 
         try {
+            //creating new cipher
             Cipher decryptCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             decryptCipher.init(Cipher.DECRYPT_MODE, privateKey);
 
+            //decrypting
             byte[] inputDecrypted = decryptCipher.doFinal(inputDecoded);
-            decryptedInput = new String(inputDecrypted, StandardCharsets.UTF_8);
+            decryptedInputString = new String(inputDecrypted, StandardCharsets.UTF_8);
         } catch (NoSuchAlgorithmException
                  | NoSuchPaddingException
                  | InvalidKeyException
@@ -260,30 +271,41 @@ public class DMAPListener implements Runnable, IListener {
             return null;
         }
 
-        if (!decryptedInput.startsWith("ok")) {
+        //parsing message
+        if (!decryptedInputString.startsWith("ok")) {
             socket.close();
             return null;
         }
 
-        var parts = decryptedInput.split(" ");
+        //taking the message apart
+        var parts = decryptedInputString.split(" ");
         String challenge = parts[1];
         String secretKey = parts[2];
         String initializationVector = parts[3];
 
+        //Base 64 decoding secret key
         byte[] secretKeyDecoded = Base64.getDecoder().decode(secretKey);
+
+        //Base 64 decoding initialization Vector
         byte[] initializationVectorDecoded = Base64.getDecoder().decode(initializationVector);
 
+        //creating secret AES Key
         SecretKey aesKey = new SecretKeySpec(secretKeyDecoded, "AES");
+
         IvParameterSpec aesInitializationVector = new IvParameterSpec(initializationVectorDecoded);
+
+        //setting up AES Parameters
         AESParameters aesParameters = new AESParameters(aesKey, aesInitializationVector);
 
         try {
+            //AES encrypting
             String encryptedResponseOptional = Base64AES.encrypt("ok " + challenge, aesParameters);
             writer.println(encryptedResponseOptional);
             writer.flush();
 
             String response = reader.readLine();
 
+            //AES Decrypting
             String decryptedResponse = Base64AES.decrypt(response, aesParameters);
             if (!decryptedResponse.equals("ok")) {
                 stop();

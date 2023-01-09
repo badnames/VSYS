@@ -1,11 +1,8 @@
 package dslab.nameserver;
 
-import javax.management.InvalidAttributeValueException;
-import javax.swing.text.html.Option;
-import java.io.PrintStream;
+import dslab.util.Config;
 import java.io.Serializable;
 import java.rmi.RemoteException;
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Optional;
 
@@ -15,11 +12,23 @@ public class NameserverRemote implements INameserverRemote, Serializable {
     //Registers a mailbox server with the given address for the given domain.
     public void registerNameserver(String domain, INameserverRemote nameserver) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
         String[] domains = domain.split("\\.");
-        if (domains.length == 1) {
+        if (domains.length == 1) { // check if a nameserver is already registered
             if (NameserverStore.getInstance().getSubZone(domain) != null) {
+                Config config = new Config("ns-root");
+                String root_id = config.getString("root_id");
+                INameserverRemote temp = this.getNameserver(domain);
+                try {
+                    //if the old nameserver connected to this name, then throw the exception. Else reregister.
+                    temp.lookup(root_id);
+                } catch (RemoteException e) {
+                    NameserverStore.getInstance().deleteSubZone(domain);
+                    NameserverStore.getInstance().addSubZone(domain, nameserver);
+                    Logger.log("Successfully re-registered name server " + domain);
+                    return;
+                }
                 throw new AlreadyRegisteredException(domain + " was already registered!");
             }
-
+            //registering nameserver
             NameserverStore.getInstance().addSubZone(domain, nameserver);
             Logger.log("Successfully registered name server " + domain);
             return;
