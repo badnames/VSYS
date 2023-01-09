@@ -8,13 +8,12 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class UsageListener implements IListener {
 
     private final int port;
-    private boolean running = true;
-    private final Object runningLock = new Object();
-
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private DatagramSocket socket;
 
     public UsageListener(int port) {
@@ -31,10 +30,7 @@ public class UsageListener implements IListener {
         }
 
 
-        while (true) {
-            synchronized (runningLock) {
-                if (!running) break;
-            }
+        while (running.get()) {
 
             byte[] buffer = new byte[65535];
 
@@ -54,9 +50,7 @@ public class UsageListener implements IListener {
     @Override
     public void stop() {
         socket.close();
-        synchronized (runningLock) {
-            this.running = false;
-        }
+        this.running.set(false);
     }
 
     private void handleMessage(String message) {
