@@ -95,10 +95,6 @@ public class ClientListener implements IListener, IDMTPParserListener {
     public void onToCommand(List<String> recipientAddresses) {
         for (String recipient : recipientAddresses) {
             var domainParts = recipient.split("@");
-            if (!DomainRegistry.getInstance().hasAddress(domainParts[1])) {
-                writer.println("error unknown address");
-                return;
-            }
             messageDestinations.add(DomainRegistry.getInstance().getAddress(domainParts[1]));
         }
 
