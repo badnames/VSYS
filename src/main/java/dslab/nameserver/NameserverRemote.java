@@ -1,7 +1,13 @@
 package dslab.nameserver;
 
 import dslab.util.Config;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.io.Serializable;
+import java.net.Socket;
+import java.net.SocketException;
 import java.rmi.RemoteException;
 import java.util.Arrays;
 import java.util.Optional;
@@ -68,9 +74,25 @@ public class NameserverRemote implements INameserverRemote, Serializable {
     public void registerMailboxServer(String domain, String address) throws RemoteException, AlreadyRegisteredException, InvalidDomainException {
         String[] domains = domain.split("\\.");
         if (domains.length == 1) {
-            if (NameserverStore.getInstance().getMailbox(domain) != null)
+            if (NameserverStore.getInstance().getMailbox(domain) != null) {
+                try {
+                    String mailboxAdrPort = NameserverStore.getInstance().getMailbox(domain);
+                    String[] parts = mailboxAdrPort.split(":");
+                    Socket socket = new Socket(parts[0],Integer.parseInt(parts[1]));
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                    if(!reader.readLine().equals("ok DMAP2.0"))
+                    {
+                        throw new SocketException();
+                    }
+                    socket.close();
+                } catch (Exception e) {
+                    NameserverStore.getInstance().deleteMailbox(domain);
+                    NameserverStore.getInstance().addMailbox(domain, address);
+                    Logger.log("Successfully re-registered mailbox server " + domain);
+                    return;
+                }
                 throw new AlreadyRegisteredException("domain");
-
+            }
             NameserverStore.getInstance().addMailbox(domain, address);
             Logger.log("Successfully registered mailbox server " + domain);
             return;
