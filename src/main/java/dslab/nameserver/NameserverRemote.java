@@ -3,6 +3,7 @@ package dslab.nameserver;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.net.Socket;
@@ -83,7 +84,7 @@ public class NameserverRemote implements INameserverRemote, Serializable {
                         throw new SocketException();
                     }
                     socket.close();
-                } catch (Exception e) {
+                } catch (IOException e) {
                     NameserverStore.getInstance().deleteMailbox(domain);
                     NameserverStore.getInstance().addMailbox(domain, address);
                     Logger.log("Successfully re-registered mailbox server " + domain);
