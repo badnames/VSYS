@@ -56,8 +56,9 @@ public class DMAPListener implements Runnable, IListener {
         MessageStore store = MessageStore.getInstance();
 
         AESParameters aesParameters = null;
+        // indicates whether the connection is encrypted.
+        boolean secure = false;
 
-        //as long as socket is not closed
         while(!socket.isClosed()) {
             String input;
 
@@ -76,22 +77,72 @@ public class DMAPListener implements Runnable, IListener {
             }
 
             input = input.strip();
+            String response = "";
+
+            // If the client wants the connection to be encrypted,
+            // we need to decrypt the input before further processing.
+            if (secure) {
+                // If decryption fails in some, just kill the connection.
+                if (aesParameters == null) {
+                    stop();
+                    return;
+                }
+
+                try {
+                    input = Base64AES.decrypt(input, aesParameters);
+                } catch (Base64CryptoException e) {
+                    stop();
+                    return;
+                }
+            }
+
+            if (input.startsWith("startsecure")) {
+                // Starting a secure connection, while the connection is already
+                // encrypted, makes no sense.
+                if (secure) {
+                    try {
+                        String message = Base64AES.encrypt("error already secure", aesParameters);
+                        writer.println(message);
+                        writer.flush();
+                    } catch (Base64CryptoException e) {
+                        stop();
+                        return;
+                    }
+                }
+
+                try {
+                    aesParameters = performAuthentication(rsaPrivateKey);
+                    secure = true;
+                    // we have successfully established an encrypted connection, go back to the beginning
+                    continue;
+                } catch (IOException e) {
+                    stop();
+                    return;
+                }
+            }
 
             if (input.equals("quit")) {
-                writer.println("ok bye");
+                String message = "ok bye";
+
+                // We need to encrypt the "ok bye" message separately, since we will stop the connection right after.
+                if (secure) {
+                    try {
+                        message = Base64AES.encrypt(message, aesParameters);
+                    } catch (Base64CryptoException ignored) {}
+                }
+
+                writer.println(message);
                 writer.flush();
+
                 stop();
                 return;
             }
 
-            String response;
-
-            //switch case for different states like logging in and encrypting
             switch (state) {
                 case WAITING:
                     response = parseWaitingState(input, store);
-
-                    writer.println(response);
+                    // Username will be set if a login was performed,
+                    // which means that we must switch state if the variable is no longer null.
                     if (username != null) {
                         state = DMAPState.LOGGED_IN;
                     }
@@ -99,87 +150,24 @@ public class DMAPListener implements Runnable, IListener {
 
                 case LOGGED_IN:
                     response = parseLoggedInState(input, username, store);
-
-                    writer.println(response);
                     if (state == DMAPState.WAITING) {
                         username = null;
                     }
                     break;
-
-                case AUTHENTICATING_WAITING:
-                    try {
-                        aesParameters = parseAuthenticatingState(input, rsaPrivateKey);
-                    } catch (IOException ignored) {}
-                    state = DMAPState.AUTHENTICATED_WAITING;
-                    break;
-
-                case AUTHENTICATING_LOGGED_IN:
-                    try {
-                        aesParameters = parseAuthenticatingState(input, rsaPrivateKey);
-                    } catch (IOException ignored) {}
-                    state = DMAPState.AUTHENTICATED_LOGGED_IN;
-                    break;
-
-                case AUTHENTICATED_WAITING:
-                    if (aesParameters == null) {
-                        try {
-                            socket.close();
-                        } catch (IOException ignored) {}
-                        continue;
-                    }
-
-                    try {
-                        //AES Decrypting message
-                        String decryptedInput = Base64AES.decrypt(input, aesParameters);
-                        response = parseWaitingState(decryptedInput, store);
-                    } catch (Base64CryptoException e) {
-                        stop();
-                        continue;
-                    }
-
-                    if (username != null) {
-                        state = DMAPState.AUTHENTICATED_LOGGED_IN;
-                    }
-
-                    try {
-                        //AES Encrypting message
-                        String responseEncrypted = Base64AES.encrypt(response, aesParameters);
-                        //sending message
-                        writer.println(responseEncrypted);
-                    } catch (Base64CryptoException e) {
-                        stop();
-                        continue;
-                    }
-                    break;
-
-                case AUTHENTICATED_LOGGED_IN:
-                    if (aesParameters == null) {
-                        try {
-                            socket.close();
-                        } catch (IOException ignored) {}
-                        continue;
-                    }
-
-                    try {
-                        //decrypting response
-                        String decryptedInput = Base64AES.decrypt(input, aesParameters);
-                        response = parseLoggedInState(decryptedInput, username, store);
-
-                        //encrypting response
-                        String responseEncrypted = Base64AES.encrypt(response, aesParameters);
-
-                        //sending response
-                        writer.println(responseEncrypted);
-                    } catch (Base64CryptoException e) {
-                        stop();
-                        continue;
-                    }
-
-                    if (state == DMAPState.AUTHENTICATED_WAITING) {
-                        username = null;
-                    }
-                    break;
             }
+
+            // encrypt the response if the connection is secure
+            if (secure) {
+                try {
+                    response = Base64AES.encrypt(response, aesParameters);
+                } catch (Base64CryptoException e) {
+                    stop();
+                    return;
+                }
+            }
+
+            //sending response
+            writer.println(response);
             writer.flush();
         }
     }
@@ -205,15 +193,6 @@ public class DMAPListener implements Runnable, IListener {
             return "error not logged in";
         }
 
-        if (input.equals("startsecure")) {
-            if (state == DMAPState.AUTHENTICATED_WAITING) {
-                return "error already authenticated";
-            }
-
-            state = DMAPState.AUTHENTICATING_WAITING;
-            return "ok " + componentId;
-        }
-
         return "error protocol error";
     }
 
@@ -236,30 +215,24 @@ public class DMAPListener implements Runnable, IListener {
             return "ok";
         }
 
-        if(input.equals("startsecure")) {
-            if (state == DMAPState.AUTHENTICATED_WAITING) {
-                return "error already authenticated";
-            }
-
-            state = DMAPState.AUTHENTICATING_LOGGED_IN;
-
-            return "ok " + componentId;
-        }
-
         return "error unknown command";
     }
 
-    private AESParameters parseAuthenticatingState(String input, PrivateKey privateKey) throws IOException {
-        //Base64 decoding input
+    private AESParameters performAuthentication(PrivateKey privateKey) throws IOException {
+        // respond to command "startsecure"
+        writer.println("ok " + componentId);
+        writer.flush();
+
+        // parse RSA message
+        String input = reader.readLine();
+
         byte[] inputDecoded = Base64.getDecoder().decode(input);
         String decryptedInputString;
 
         try {
-            //creating new cipher
             Cipher decryptCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
             decryptCipher.init(Cipher.DECRYPT_MODE, privateKey);
 
-            //decrypting
             byte[] inputDecrypted = decryptCipher.doFinal(inputDecoded);
             decryptedInputString = new String(inputDecrypted, StandardCharsets.UTF_8);
         } catch (NoSuchAlgorithmException
@@ -271,41 +244,35 @@ public class DMAPListener implements Runnable, IListener {
             return null;
         }
 
-        //parsing message
         if (!decryptedInputString.startsWith("ok")) {
             socket.close();
             return null;
         }
 
-        //taking the message apart
         var parts = decryptedInputString.split(" ");
         String challenge = parts[1];
         String secretKey = parts[2];
         String initializationVector = parts[3];
 
-        //Base 64 decoding secret key
         byte[] secretKeyDecoded = Base64.getDecoder().decode(secretKey);
 
-        //Base 64 decoding initialization Vector
         byte[] initializationVectorDecoded = Base64.getDecoder().decode(initializationVector);
 
-        //creating secret AES Key
+        // creating secret AES Key
         SecretKey aesKey = new SecretKeySpec(secretKeyDecoded, "AES");
-
         IvParameterSpec aesInitializationVector = new IvParameterSpec(initializationVectorDecoded);
 
-        //setting up AES Parameters
         AESParameters aesParameters = new AESParameters(aesKey, aesInitializationVector);
 
         try {
-            //AES encrypting
+            // Encrypt the challenge
             String encryptedResponseOptional = Base64AES.encrypt("ok " + challenge, aesParameters);
             writer.println(encryptedResponseOptional);
             writer.flush();
 
             String response = reader.readLine();
 
-            //AES Decrypting
+            // Check if the challenge was successfully received
             String decryptedResponse = Base64AES.decrypt(response, aesParameters);
             if (!decryptedResponse.equals("ok")) {
                 stop();
@@ -342,7 +309,12 @@ public class DMAPListener implements Runnable, IListener {
         var messages = store.getAllMessagesReadOnly(username);
 
         StringBuilder response = new StringBuilder();
-        messages.forEach((id, message) -> response.append(id).append(" ").append(message.getFrom()).append(" ").append(message.getSubject()).append("\n"));
+        messages.forEach((id, message) -> response.append(id)
+                .append(" ")
+                .append(message.getFrom())
+                .append(" ")
+                .append(message.getSubject())
+                .append("\n"));
         response.append("ok");
 
         return response.toString();

@@ -205,7 +205,7 @@ public class MailboxListener implements IListener {
         var result = new ArrayList<MailboxAddress>();
 
         for (String hostname : hostnames) {
-            MailboxAddress address = lookupMailbox(hostname, message);
+            MailboxAddress address = lookupMailbox(hostname);
 
             if (address == null) {
                 return null;
@@ -215,7 +215,7 @@ public class MailboxListener implements IListener {
         return result;
     }
 
-    private MailboxAddress lookupMailbox(String address, Message message) {
+    private MailboxAddress lookupMailbox(String name) {
         Config config = new Config("ns-root");
         int port = config.getInt("registry.port");
         String host = config.getString("registry.host");
@@ -223,7 +223,7 @@ public class MailboxListener implements IListener {
 
         // If we get e.g. vienna.earth.planet we need to contact the nameservers
         // vienna and earth, then request the mailbox planet.
-        String[] zones = address.split("\\.");
+        String[] zones = name.split("\\.");
 
         try {
             if (zones.length == 0) {
@@ -239,10 +239,15 @@ public class MailboxListener implements IListener {
                 nameServerRemote = nameServerRemote.getNameserver(zone);
             }
 
+            String address = nameServerRemote.lookup(zoneQueue.removeLast());
+
+            if (address == null) {
+                return null;
+            }
+
             // The last element in the queue is the mailboxes' address.
             // Therefore, we need to request it individually from the last nameserver.
-            String[] parsedAddress = nameServerRemote
-                    .lookup(zoneQueue.removeLast())
+            String[] parsedAddress = address
                     .split(":");
 
             return new MailboxAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
