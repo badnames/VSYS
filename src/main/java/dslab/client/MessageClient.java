@@ -245,7 +245,7 @@ public class MessageClient implements IMessageClient, Runnable {
             }
 
             //calculate compHash
-            String compHash = calculateBase64HMAC(message.getFrom(), message.getSubject(), message.getData());
+            String compHash = calculateBase64HMAC(message.getTo(), message.getFrom(), message.getSubject(), message.getData());
 
             //comparing hashes
             if (compHash.equals(recvHash)) {
@@ -325,7 +325,7 @@ public class MessageClient implements IMessageClient, Runnable {
                 return;
             }
 
-            String hash = calculateBase64HMAC(to, subject, data);
+            String hash = calculateBase64HMAC(to, config.getString("transfer.email"), subject, data);
 
             writer.println("hash " + hash);
             writer.flush();
@@ -525,7 +525,7 @@ public class MessageClient implements IMessageClient, Runnable {
         return false;
     }
 
-    private String calculateBase64HMAC(String to, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
+    private String calculateBase64HMAC(String to, String from, String subject, String data) throws NoSuchAlgorithmException, IOException, InvalidKeyException {
         //reading secret key
         SecretKeySpec temp = Keys.readSecretKey(new File("keys/hmac.key"));
         //setting MAC to SHA256
@@ -534,7 +534,7 @@ public class MessageClient implements IMessageClient, Runnable {
         mac.init(temp);
 
         //creating message
-        String msg = String.join("\n", config.getString("transfer.email"), to, subject, data);
+        String msg = String.join("\n", to, from, subject, data);
         //converting to array
         byte[] bytes = msg.getBytes();
         //creating macResult from messsage
