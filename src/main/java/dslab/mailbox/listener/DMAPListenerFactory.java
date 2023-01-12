@@ -8,7 +8,7 @@ import java.security.PrivateKey;
 import java.util.LinkedList;
 
 public class DMAPListenerFactory implements IListenerFactory {
-    private LinkedList<DMAPListener> handlers = new LinkedList<>();
+    private final LinkedList<DMAPListener> handlers = new LinkedList<>();
     private final String componentId;
     private final PrivateKey rsaPrivateKey;
 

@@ -49,7 +49,7 @@ public class Nameserver implements INameserver {
 
         remote = new NameserverRemote();
 
-        INameserverRemote remoteStub = null;
+        INameserverRemote remoteStub;
 
         try {
             remoteStub = (INameserverRemote) UnicastRemoteObject.exportObject(remote, 0);
@@ -75,8 +75,8 @@ public class Nameserver implements INameserver {
             String domain = config.getString("domain");
             shell.setPrompt("[Nameserver " + domain + "] >>> ");
 
-            Registry rootRegistry = null;
-            INameserverRemote rootNameServerRemote = null;
+            Registry rootRegistry;
+            INameserverRemote rootNameServerRemote;
 
             try {
                 //connecting to root Nameserver
