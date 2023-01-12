@@ -35,7 +35,7 @@ public class UsageStore {
     public String serverAccessesToString() {
         StringBuilder accessString = new StringBuilder();
         for (var key : serverAccessMap.keySet()) {
-            accessString.append(key).append(" ").append(serverAccessMap.get(key));
+            accessString.append(key).append(" ").append(serverAccessMap.get(key)).append("\n");
         }
 
         return accessString.toString();
