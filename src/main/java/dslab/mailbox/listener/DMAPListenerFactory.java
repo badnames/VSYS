@@ -1,9 +1,8 @@
-package dslab.mailbox.handler;
+package dslab.mailbox.listener;
 
-import dslab.util.handler.IListener;
-import dslab.util.handler.IListenerFactory;
+import dslab.util.listener.IListener;
+import dslab.util.listener.IListenerFactory;
 
-import java.io.PrintWriter;
 import java.net.Socket;
 import java.security.PrivateKey;
 import java.util.LinkedList;

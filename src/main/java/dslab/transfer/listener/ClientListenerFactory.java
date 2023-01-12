@@ -1,8 +1,8 @@
-package dslab.transfer.handler;
+package dslab.transfer.listener;
 
 import dslab.util.Message;
-import dslab.util.handler.IListener;
-import dslab.util.handler.IListenerFactory;
+import dslab.util.listener.IListener;
+import dslab.util.listener.IListenerFactory;
 
 import java.net.Socket;
 import java.util.LinkedList;

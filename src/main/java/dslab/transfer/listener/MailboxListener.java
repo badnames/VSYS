@@ -1,11 +1,11 @@
-package dslab.transfer.handler;
+package dslab.transfer.listener;
 
 import dslab.nameserver.INameserverRemote;
 import dslab.transfer.DomainRegistry;
 import dslab.transfer.MailboxAddress;
 import dslab.util.Config;
 import dslab.util.Message;
-import dslab.util.handler.IListener;
+import dslab.util.listener.IListener;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,7 +16,6 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.rmi.AccessException;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;

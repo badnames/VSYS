@@ -16,7 +16,6 @@ import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.util.Config;
-import dslab.util.handler.DispatchListener;
 
 //Nameservers only host exactly one zone.
 //A nameserver can communicate with the nameservers on the next lower level

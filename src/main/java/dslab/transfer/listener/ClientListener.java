@@ -1,9 +1,9 @@
-package dslab.transfer.handler;
+package dslab.transfer.listener;
 
 import dslab.transfer.DomainRegistry;
 import dslab.transfer.MailboxAddress;
 import dslab.util.Message;
-import dslab.util.handler.IListener;
+import dslab.util.listener.IListener;
 import dslab.util.parser.DMTPParser;
 import dslab.util.parser.IDMTPParserListener;
 import dslab.util.parser.ParserException;

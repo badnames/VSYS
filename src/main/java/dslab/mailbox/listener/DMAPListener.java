@@ -1,11 +1,11 @@
-package dslab.mailbox.handler;
+package dslab.mailbox.listener;
 
 import dslab.mailbox.MessageStore;
 import dslab.util.AESParameters;
 import dslab.util.Base64AES;
 import dslab.util.Base64CryptoException;
 import dslab.util.DMAPState;
-import dslab.util.handler.IListener;
+import dslab.util.listener.IListener;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;

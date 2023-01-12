@@ -1,8 +1,8 @@
-package dslab.mailbox.handler;
+package dslab.mailbox.listener;
 
 import dslab.util.Message;
 import dslab.mailbox.MessageStore;
-import dslab.util.handler.IListener;
+import dslab.util.listener.IListener;
 import dslab.util.parser.DMTPParser;
 import dslab.util.parser.IDMTPParserListener;
 import dslab.util.parser.ParserException;

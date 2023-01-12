@@ -7,7 +7,7 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.monitoring.handler.UsageListener;
+import dslab.monitoring.listener.UsageListener;
 import dslab.util.Config;
 
 public class MonitoringServer implements IMonitoringServer {

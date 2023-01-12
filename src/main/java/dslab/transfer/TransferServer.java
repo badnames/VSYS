@@ -11,11 +11,11 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.transfer.handler.ClientListenerFactory;
-import dslab.transfer.handler.MailboxListener;
+import dslab.transfer.listener.ClientListenerFactory;
+import dslab.transfer.listener.MailboxListener;
 import dslab.util.Config;
 import dslab.util.Message;
-import dslab.util.handler.DispatchListener;
+import dslab.util.listener.DispatchListener;
 
 public class TransferServer implements ITransferServer, Runnable {
 

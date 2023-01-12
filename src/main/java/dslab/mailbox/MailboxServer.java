@@ -11,7 +11,6 @@ import java.rmi.registry.LocateRegistry;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.HashMap;
@@ -21,12 +20,12 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.mailbox.handler.DMAPListenerFactory;
-import dslab.mailbox.handler.DMTPListenerFactory;
+import dslab.mailbox.listener.DMAPListenerFactory;
+import dslab.mailbox.listener.DMTPListenerFactory;
 import dslab.nameserver.AlreadyRegisteredException;
 import dslab.nameserver.INameserverRemote;
 import dslab.nameserver.InvalidDomainException;
-import dslab.util.handler.DispatchListener;
+import dslab.util.listener.DispatchListener;
 import dslab.util.Config;
 
 public class MailboxServer implements IMailboxServer, Runnable {

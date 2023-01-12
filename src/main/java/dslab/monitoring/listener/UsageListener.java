@@ -1,7 +1,7 @@
-package dslab.monitoring.handler;
+package dslab.monitoring.listener;
 
 import dslab.monitoring.UsageStore;
-import dslab.util.handler.IListener;
+import dslab.util.listener.IListener;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
