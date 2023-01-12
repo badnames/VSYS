@@ -6,14 +6,14 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class DispatchListener implements IListener {
 
-    private final Object runningLock = new Object();
     private final ServerSocket socket;
     private final ExecutorService pool;
     private final IListenerFactory factory;
-    private boolean running = true;
+    private final AtomicBoolean running = new AtomicBoolean(true);
 
     public DispatchListener(int port, int threads, IListenerFactory factory) throws IOException {
         socket = new ServerSocket(port);
@@ -23,10 +23,7 @@ public class DispatchListener implements IListener {
 
     @Override
     public void run() {
-        while (true) {
-            synchronized (runningLock) {
-                if (!running) break;
-            }
+        while (running.get()) {
 
             Socket clientSocket;
             try {
@@ -42,9 +39,7 @@ public class DispatchListener implements IListener {
 
     @Override
     public synchronized void stop() {
-        synchronized (runningLock) {
-            running = false;
-        }
+        running.set(false);
 
         try {
             socket.close();
