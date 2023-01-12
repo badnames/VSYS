@@ -339,11 +339,10 @@ public class DMAPListener implements Runnable, IListener {
             var message = store.getMessage(username, messageId);
             // the hash will be omitted if it has not been set
             var hash = message.getHash() != null ? "\nhash " + message.getHash() : "";
-            response.append("from " + message.getFrom()
-                    + "\nto " + message.getTo()
-                    + "\nsubject " + message.getSubject()
-                    + "\ndata " + message.getData()
-                    + hash);
+            response.append("from ").append(message.getFrom())
+                    .append("\nto ").append(message.getTo())
+                    .append("\nsubject ").append(message.getSubject())
+                    .append("\ndata ").append(message.getData()).append(hash);
         } catch (IllegalArgumentException e) {
             return "error " + e.getMessage();
         }
