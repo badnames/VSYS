@@ -1,5 +1,23 @@
 package dslab.client;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
+import dslab.ComponentFactory;
+import dslab.util.AESParameters;
+import dslab.util.Base64AES;
+import dslab.util.Base64CryptoException;
+import dslab.util.Config;
+import dslab.util.Keys;
+import dslab.util.Message;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.Mac;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -23,26 +41,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import at.ac.tuwien.dsg.orvell.Shell;
-import at.ac.tuwien.dsg.orvell.StopShellException;
-import at.ac.tuwien.dsg.orvell.annotation.Command;
-import dslab.ComponentFactory;
-import dslab.util.AESParameters;
-import dslab.util.Base64AES;
-import dslab.util.Base64CryptoException;
-import dslab.util.Config;
-import dslab.util.Keys;
-import dslab.util.Message;
-
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.Mac;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
-
-@SuppressWarnings("resource")
 public class MessageClient implements IMessageClient, Runnable {
 
     private final Shell shell;
@@ -60,11 +58,17 @@ public class MessageClient implements IMessageClient, Runnable {
      * @param in                 the input stream to read console input from
      * @param out                the output stream to write console output to
      */
-    public MessageClient(String ignoredComponentId, Config config, InputStream in, PrintStream out) throws IOException {
+    public MessageClient(String ignoredComponentId, Config config, InputStream in, PrintStream out) {
         this.config = config;
         shell = new Shell(in, out);
         shell.setPrompt(config.getString("transfer.email") + " >>> ");
         shell.register(this);
+    }
+
+    public static void main(String[] args) throws Exception {
+        //creating and running server
+        IMessageClient client = ComponentFactory.createMessageClient(args[0], System.in, System.out);
+        client.run();
     }
 
     @Override
@@ -505,8 +509,9 @@ public class MessageClient implements IMessageClient, Runnable {
                 throw new IOException();
             }
         } catch (IOException | NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException |
-                BadPaddingException | InvalidKeySpecException | InvalidKeyException | InvalidAlgorithmParameterException
-                | Base64CryptoException e) {
+                 BadPaddingException | InvalidKeySpecException | InvalidKeyException |
+                 InvalidAlgorithmParameterException
+                 | Base64CryptoException e) {
 
             shell.err().println("Could not login to mailbox!");
             try {
@@ -538,11 +543,5 @@ public class MessageClient implements IMessageClient, Runnable {
         byte[] decodedBytes = Base64.getEncoder().encode(macResult);
 
         return new String(decodedBytes, StandardCharsets.UTF_8);
-    }
-
-    public static void main(String[] args) throws Exception {
-        //creating and running server
-        IMessageClient client = ComponentFactory.createMessageClient(args[0], System.in, System.out);
-        client.run();
     }
 }

@@ -59,7 +59,7 @@ public class DMAPListener implements Runnable, IListener {
         // indicates whether the connection is encrypted.
         boolean secure = false;
 
-        while(!socket.isClosed()) {
+        while (!socket.isClosed()) {
             String input;
 
             try {
@@ -128,7 +128,8 @@ public class DMAPListener implements Runnable, IListener {
                 if (secure) {
                     try {
                         message = Base64AES.encrypt(message, aesParameters);
-                    } catch (Base64CryptoException ignored) {}
+                    } catch (Base64CryptoException ignored) {
+                    }
                 }
 
                 writer.println(message);
@@ -293,7 +294,7 @@ public class DMAPListener implements Runnable, IListener {
             return "error protocol error";
         }
 
-        if (!store.hasUser(parts[1])) {
+        if (store.userUnknown(parts[1])) {
             return "error unknown user";
         }
 
@@ -301,7 +302,7 @@ public class DMAPListener implements Runnable, IListener {
             return "error wrong password";
         }
 
-        username =  parts[1];
+        username = parts[1];
         return "ok";
     }
 

@@ -2,7 +2,6 @@ package dslab.util;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.SecretKeySpec;
 
 public class AESParameters {
     private final SecretKey key;

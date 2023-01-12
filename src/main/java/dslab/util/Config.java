@@ -11,7 +11,7 @@ import java.util.Set;
 public final class Config {
 
     private final ResourceBundle bundle;
-    private Map<String, Object> properties = new HashMap<>();
+    private final Map<String, Object> properties = new HashMap<>();
 
     /**
      * Creates an instance of Config which reads configuration data form {@code .properties} file with given name found
@@ -59,7 +59,7 @@ public final class Config {
     /**
      * Sets the value for the given key.
      *
-     * @param key the property's key
+     * @param key   the property's key
      * @param value the value of the property
      */
     public void setProperty(String key, Object value) {

@@ -20,11 +20,10 @@ import java.util.concurrent.BlockingDeque;
 public class ClientListener implements IListener, IDMTPParserListener {
 
     private final Socket socket;
-    private BufferedReader reader;
-    private PrintWriter writer;
     private final DMTPParser parser;
     private final BlockingDeque<Message> commandQueue;
-
+    private BufferedReader reader;
+    private PrintWriter writer;
     private Message message;
     private List<MailboxAddress> messageDestinations = new LinkedList<>();
 
@@ -47,7 +46,7 @@ public class ClientListener implements IListener, IDMTPParserListener {
         writer.println("ok DMTP2.0");
         writer.flush();
 
-        while(!socket.isClosed()) {
+        while (!socket.isClosed()) {
             String input = "";
             try {
                 input = reader.readLine();
@@ -79,7 +78,7 @@ public class ClientListener implements IListener, IDMTPParserListener {
 
     @Override
     public void onBeginCommand() {
-        message = new Message("", "", "", "","");
+        message = new Message("", "", "", "", "");
         messageDestinations = new LinkedList<>();
         writer.println("ok");
     }

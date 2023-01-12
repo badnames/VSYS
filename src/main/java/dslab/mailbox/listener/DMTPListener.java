@@ -1,7 +1,7 @@
 package dslab.mailbox.listener;
 
-import dslab.util.Message;
 import dslab.mailbox.MessageStore;
+import dslab.util.Message;
 import dslab.util.listener.IListener;
 import dslab.util.parser.DMTPParser;
 import dslab.util.parser.IDMTPParserListener;
@@ -23,7 +23,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
     private BufferedReader reader;
     private PrintWriter writer;
 
-    private Message message = new Message("", "", "", "","");
+    private Message message = new Message("", "", "", "", "");
     private List<String> recipients = new LinkedList<>();
 
 
@@ -45,7 +45,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
         writer.println("ok DMTP2.0");
         writer.flush();
 
-        while(!socket.isClosed()) {
+        while (!socket.isClosed()) {
             String input = "";
             try {
                 input = reader.readLine();
@@ -76,7 +76,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
     @Override
     public void onBeginCommand() {
         writer.println("ok");
-        message = new Message("", "", "", "","");
+        message = new Message("", "", "", "", "");
         recipients = new LinkedList<>();
     }
 
@@ -105,7 +105,7 @@ public class DMTPListener implements IListener, IDMTPParserListener {
                 continue;
 
             // if a user is not known, we stop parsing
-            if (!store.hasUser(addressParts[0])) {
+            if (store.userUnknown(addressParts[0])) {
                 writer.println("error unknown recipient " + addressParts[0]);
                 return;
             }

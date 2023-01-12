@@ -9,8 +9,75 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class MessageStore {
 
+    private final Object lastIdLock = new Object();
+    // Keys: usernames, Values: message queues
+    private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Message>> userMessageMap;
+    private ConcurrentHashMap<String, String> userPasswordMap;
+    private int lastId = 0;
     // This class is a singleton
     private MessageStore() {
+    }
+
+    public static synchronized MessageStore getInstance() {
+        return InstanceHolder.INSTANCE;
+    }
+
+    public void init(HashMap<String, String> userPasswordMap) {
+        this.userPasswordMap = new ConcurrentHashMap<>(userPasswordMap);
+        this.userMessageMap = new ConcurrentHashMap<>();
+
+        this.userPasswordMap.forEach((username, password) -> this.userMessageMap.put(
+                username,
+                new ConcurrentHashMap<>())
+        );
+    }
+
+    public boolean userUnknown(String username) {
+        return !this.userPasswordMap.containsKey(username);
+    }
+
+    public boolean isPasswordCorrect(String username, String password) {
+        return this.userPasswordMap.get(username).equals(password);
+    }
+
+    public void putMessage(String username, Message message) {
+        if (userUnknown(username)) {
+            throw new IllegalArgumentException("User " + username + " does not exist!");
+        }
+
+        synchronized (lastIdLock) {
+            this.userMessageMap.get(username).put(lastId, message);
+            lastId++;
+        }
+    }
+
+    public Message getMessage(String username, int id) {
+        if (userUnknown(username)) {
+            throw new IllegalArgumentException("user " + username + " does not exist");
+        }
+
+        if (!this.userMessageMap.get(username).containsKey(id)) {
+            throw new IllegalArgumentException("message does not exist");
+        }
+
+        return this.userMessageMap.get(username).get(id);
+    }
+
+    public Map<Integer, Message> getAllMessagesReadOnly(String username) {
+        var list = this.userMessageMap.get(username);
+        return Collections.unmodifiableMap(list);
+    }
+
+    public void deleteMessage(String username, int id) {
+        if (userUnknown(username)) {
+            throw new IllegalArgumentException("User " + username + " does not exist!");
+        }
+
+        if (!this.userMessageMap.get(username).containsKey(id)) {
+            throw new IllegalArgumentException("message does not exist");
+        }
+
+        this.userMessageMap.get(username).remove(id);
     }
 
     /*
@@ -27,74 +94,5 @@ public class MessageStore {
      */
     private static class InstanceHolder {
         private static final MessageStore INSTANCE = new MessageStore();
-    }
-
-    public static synchronized MessageStore getInstance() {
-        return InstanceHolder.INSTANCE;
-    }
-
-    // Keys: usernames, Values: message queues
-    private ConcurrentHashMap<String, ConcurrentHashMap<Integer, Message>> userMessageMap;
-    private ConcurrentHashMap<String, String> userPasswordMap;
-
-    private final Object lastIdLock = new Object();
-    private int lastId = 0;
-
-    public void init(HashMap<String, String> userPasswordMap) {
-        this.userPasswordMap = new ConcurrentHashMap<>(userPasswordMap);
-        this.userMessageMap = new ConcurrentHashMap<>();
-
-        this.userPasswordMap.forEach((username, password) -> this.userMessageMap.put(
-                username,
-                new ConcurrentHashMap<>())
-        );
-    }
-
-    public boolean hasUser(String username) {
-        return this.userPasswordMap.containsKey(username);
-    }
-
-    public boolean isPasswordCorrect(String username, String password) {
-        return this.userPasswordMap.get(username).equals(password);
-    }
-
-    public void putMessage(String username, Message message) {
-        if (!hasUser(username)) {
-            throw new IllegalArgumentException("User " + username + " does not exist!");
-        }
-
-        synchronized (lastIdLock) {
-            this.userMessageMap.get(username).put(lastId, message);
-            lastId++;
-        }
-    }
-
-    public Message getMessage(String username, int id) {
-        if (!hasUser(username)) {
-            throw new IllegalArgumentException("user " + username + " does not exist");
-        }
-
-        if (!this.userMessageMap.get(username).containsKey(id)) {
-            throw new IllegalArgumentException("message does not exist");
-        }
-
-        return this.userMessageMap.get(username).get(id);
-    }
-
-    public Map<Integer, Message> getAllMessagesReadOnly(String username) {
-        var list =  this.userMessageMap.get(username);
-        return Collections.unmodifiableMap(list);
-    }
-
-    public void deleteMessage(String username, int id) {
-        if (!hasUser(username)) {
-            throw new IllegalArgumentException("User " + username + " does not exist!");
-        }
-
-        if (!this.userMessageMap.get(username).containsKey(id)) {
-            throw new IllegalArgumentException("message does not exist");
-        }
-
-        this.userMessageMap.get(username).remove(id);
     }
 }

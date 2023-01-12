@@ -4,19 +4,15 @@ import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class DomainRegistry {
+    private final ConcurrentHashMap<String, MailboxAddress> addressMap = new ConcurrentHashMap<>();
+
     // singleton
-    private DomainRegistry() {}
-
-    private static class InstanceHolder {
-
-        private static final DomainRegistry INSTANCE = new DomainRegistry();
+    private DomainRegistry() {
     }
 
     public static synchronized DomainRegistry getInstance() {
         return InstanceHolder.INSTANCE;
     }
-
-    private ConcurrentHashMap<String, MailboxAddress> addressMap = new ConcurrentHashMap<>();
 
     public synchronized void init() {
         var propertyFileName = "domains.properties";
@@ -38,5 +34,10 @@ public class DomainRegistry {
 
     public boolean hasAddress(String domain) {
         return addressMap.containsKey(domain);
+    }
+
+    private static class InstanceHolder {
+
+        private static final DomainRegistry INSTANCE = new DomainRegistry();
     }
 }

@@ -23,7 +23,7 @@ public class UsageListener implements IListener {
     @Override
     public void run() {
         try {
-             socket = new DatagramSocket(port);
+            socket = new DatagramSocket(port);
         } catch (SocketException e) {
             System.err.println("Could not connect to socket!");
             return;

@@ -61,15 +61,13 @@ public class DMTPParser {
                     var from = input.substring(5);
                     listener.onFromCommand(from);
 
-                }
-                else if (input.startsWith("hash")) {
+                } else if (input.startsWith("hash")) {
                     if (input.length() < 5)
                         listener.onFromCommand("");
                     // remove "hash " from the line (4 letters plus one space)
                     var hash = input.substring(5);
                     listener.onHashCommand(hash);
-                }
-                else if (input.equals("send")) {
+                } else if (input.equals("send")) {
                     if (listener.onSendCommand())
                         state = DMTPState.WAITING;
 

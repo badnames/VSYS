@@ -3,7 +3,7 @@ package dslab.transfer;
 /**
  * The transfer server is responsible for accepting mails sent by users, and forward them to mailbox servers via DMTP.
  * It also reports usage statistics to the monitoring server.
- *
+ * <p>
  * Do not change the existing method signatures!
  */
 public interface ITransferServer extends Runnable {

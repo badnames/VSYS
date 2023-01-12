@@ -2,7 +2,7 @@ package dslab.nameserver;
 
 /**
  * A Nameserver application.
- *
+ * <p>
  * Do not change the existing method signatures!
  */
 public interface INameserver extends Runnable {

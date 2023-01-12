@@ -1,5 +1,17 @@
 package dslab.mailbox;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
+import dslab.ComponentFactory;
+import dslab.mailbox.listener.DMAPListenerFactory;
+import dslab.mailbox.listener.DMTPListenerFactory;
+import dslab.nameserver.AlreadyRegisteredException;
+import dslab.nameserver.INameserverRemote;
+import dslab.nameserver.InvalidDomainException;
+import dslab.util.Config;
+import dslab.util.listener.DispatchListener;
+
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -16,18 +28,6 @@ import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.HashMap;
 import java.util.ResourceBundle;
 
-import at.ac.tuwien.dsg.orvell.Shell;
-import at.ac.tuwien.dsg.orvell.StopShellException;
-import at.ac.tuwien.dsg.orvell.annotation.Command;
-import dslab.ComponentFactory;
-import dslab.mailbox.listener.DMAPListenerFactory;
-import dslab.mailbox.listener.DMTPListenerFactory;
-import dslab.nameserver.AlreadyRegisteredException;
-import dslab.nameserver.INameserverRemote;
-import dslab.nameserver.InvalidDomainException;
-import dslab.util.listener.DispatchListener;
-import dslab.util.Config;
-
 public class MailboxServer implements IMailboxServer, Runnable {
 
     private final DispatchListener dmapDispatcher;
@@ -40,9 +40,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
      * Creates a new server instance.
      *
      * @param componentId the id of the component that corresponds to the Config resource
-     * @param config the component config
-     * @param in the input stream to read console input from
-     * @param out the output stream to write console output to
+     * @param config      the component config
+     * @param in          the input stream to read console input from
+     * @param out         the output stream to write console output to
      */
     public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
         this.config = config;
@@ -56,7 +56,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
         String serverDomain = config.getString("domain");
         String serverHost = InetAddress.getLocalHost().getHostAddress();
-        int serverPort =  config.getInt("dmtp.tcp.port");
+        int serverPort = config.getInt("dmtp.tcp.port");
 
         int nameserverPort = config.getInt("registry.port");
         String nameserverHost = config.getString("registry.host");
@@ -66,7 +66,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
             var rootRegistry = LocateRegistry.getRegistry(nameserverHost, nameserverPort);
             INameserverRemote rootNameServerRemote = (INameserverRemote) rootRegistry.lookup(root_id);
 
-            rootNameServerRemote.registerMailboxServer(serverDomain, serverHost+":"+serverPort);
+            rootNameServerRemote.registerMailboxServer(serverDomain, serverHost + ":" + serverPort);
         } catch (RemoteException | AlreadyRegisteredException | InvalidDomainException | NotBoundException e) {
             shell.err().println("ERROR registering with Nameserver: " + e);
         }
@@ -78,8 +78,13 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
     }
 
+    public static void main(String[] args) throws Exception {
+        IMailboxServer server = ComponentFactory.createMailboxServer(args[0], System.in, System.out);
+        server.run();
+    }
+
     @Override
-    public void run()  {
+    public void run() {
         new Thread(dmapDispatcher).start();
         new Thread(dmtpDispatcher).start();
 
@@ -120,12 +125,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
         PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(rsaPrivateKey);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-        
-        return keyFactory.generatePrivate(spec);
-    }
 
-    public static void main(String[] args) throws Exception {
-        IMailboxServer server = ComponentFactory.createMailboxServer(args[0], System.in, System.out);
-        server.run();
+        return keyFactory.generatePrivate(spec);
     }
 }

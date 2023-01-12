@@ -9,12 +9,11 @@ import java.util.concurrent.TimeUnit;
 
 public class DispatchListener implements IListener {
 
-    private boolean running = true;
     private final Object runningLock = new Object();
-
     private final ServerSocket socket;
     private final ExecutorService pool;
     private final IListenerFactory factory;
+    private boolean running = true;
 
     public DispatchListener(int port, int threads, IListenerFactory factory) throws IOException {
         socket = new ServerSocket(port);

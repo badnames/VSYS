@@ -1,4 +1,4 @@
 package dslab.util.parser;
 
-public class ParserException extends Exception{
+public class ParserException extends Exception {
 }

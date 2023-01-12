@@ -1,21 +1,18 @@
 package dslab.util;
 
+import javax.crypto.spec.SecretKeySpec;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.KeySpec;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-
-import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Reads encryption keys from the file system.
@@ -32,8 +29,8 @@ public final class Keys {
      *
      * @param file the file containing the RSA key
      * @return a PrivateKey instance
-     * @throws IOException if an exception occurred while reading the key file
-     * @throws NullPointerException if encoded key is null
+     * @throws IOException           if an exception occurred while reading the key file
+     * @throws NullPointerException  if encoded key is null
      * @throws IllegalStateException if an error occurred in the java security api
      */
     public static PrivateKey readPrivateKey(File file) throws IOException, NullPointerException, IllegalStateException {
@@ -42,11 +39,9 @@ public final class Keys {
             PKCS8EncodedKeySpec spec = new PKCS8EncodedKeySpec(fileContent);
 
             return createPrivateKey(spec);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new IOException(String.format("Cannot read key file %s.", file.getCanonicalPath()));
-        }
-        catch (NullPointerException e) {
+        } catch (NullPointerException e) {
             throw new NullPointerException(String.format("Key seems to be empty from file %s", file.getCanonicalPath()));
         }
     }
@@ -57,8 +52,8 @@ public final class Keys {
      *
      * @param file the file containing the RSA key
      * @return a PublicKey instance
-     * @throws IOException if an exception occurred while reading the key file
-     * @throws NullPointerException if encoded key is null
+     * @throws IOException           if an exception occurred while reading the key file
+     * @throws NullPointerException  if encoded key is null
      * @throws IllegalStateException if an error occurred in the java security api
      */
     public static PublicKey readPublicKey(File file) throws IOException, NullPointerException, IllegalStateException {
@@ -67,11 +62,9 @@ public final class Keys {
             X509EncodedKeySpec spec = new X509EncodedKeySpec(fileContent);
 
             return createPublicKey(spec);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new IOException(String.format("Cannot read key file %s.", file.getCanonicalPath()), e);
-        }
-        catch (NullPointerException e) {
+        } catch (NullPointerException e) {
             throw new NullPointerException(String.format("Key seems to be empty from file %s", file.getCanonicalPath()));
         }
     }
@@ -124,7 +117,7 @@ public final class Keys {
         byte[] data = new byte[len / 2];
         for (int i = 0; i < len; i += 2) {
             data[i / 2] = (byte) ((Character.digit(s.charAt(i), 16) << 4)
-                    + Character.digit(s.charAt(i+1), 16));
+                    + Character.digit(s.charAt(i + 1), 16));
         }
         return data;
     }

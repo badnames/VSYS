@@ -2,7 +2,7 @@ package dslab.client;
 
 /**
  * A Message Client application.
- *
+ * <p>
  * Do not change the existing method signatures!
  */
 public interface IMessageClient extends Runnable {
@@ -37,9 +37,9 @@ public interface IMessageClient extends Runnable {
     /**
      * Sends a message from the mail client's user to the given recipient(s)
      *
-     * @param to comma separated list of recipients
+     * @param to      comma separated list of recipients
      * @param subject the message subject
-     * @param data the message data
+     * @param data    the message data
      */
     void msg(String to, String subject, String data);
 

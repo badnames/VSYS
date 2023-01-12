@@ -4,20 +4,16 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class UsageStore {
 
-    // Singleton
-    private UsageStore() {}
+    private ConcurrentHashMap<String, Integer> addressAccessMap;
+    private ConcurrentHashMap<String, Integer> serverAccessMap;
 
-    private static class InstanceHolder {
-        private static final UsageStore INSTANCE = new UsageStore();
+    // Singleton
+    private UsageStore() {
     }
 
     public static synchronized UsageStore getInstance() {
         return InstanceHolder.INSTANCE;
     }
-
-    private ConcurrentHashMap<String, Integer> addressAccessMap;
-    private ConcurrentHashMap<String, Integer> serverAccessMap;
-
 
     public void init() {
         serverAccessMap = new ConcurrentHashMap<>();
@@ -55,7 +51,6 @@ public class UsageStore {
         addressAccessMap.put(address, accessCount + 1);
     }
 
-
     public String addressAccessesToString() {
         StringBuilder accessString = new StringBuilder();
         for (var key : addressAccessMap.keySet()) {
@@ -63,5 +58,9 @@ public class UsageStore {
         }
 
         return accessString.toString();
+    }
+
+    private static class InstanceHolder {
+        private static final UsageStore INSTANCE = new UsageStore();
     }
 }

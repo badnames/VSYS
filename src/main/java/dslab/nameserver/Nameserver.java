@@ -1,6 +1,13 @@
 package dslab.nameserver;
 
-import java.io.*;
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
+import dslab.ComponentFactory;
+import dslab.util.Config;
+
+import java.io.InputStream;
+import java.io.PrintStream;
 import java.rmi.AlreadyBoundException;
 import java.rmi.NoSuchObjectException;
 import java.rmi.NotBoundException;
@@ -10,12 +17,6 @@ import java.rmi.registry.Registry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.stream.Collectors;
-
-import at.ac.tuwien.dsg.orvell.Shell;
-import at.ac.tuwien.dsg.orvell.StopShellException;
-import at.ac.tuwien.dsg.orvell.annotation.Command;
-import dslab.ComponentFactory;
-import dslab.util.Config;
 
 //Nameservers only host exactly one zone.
 //A nameserver can communicate with the nameservers on the next lower level
@@ -39,6 +40,11 @@ public class Nameserver implements INameserver {
         this.shell.register(this);
         this.config = config;
         Logger.setLogStream(shell.out());
+    }
+
+    public static void main(String[] args) throws Exception {
+        INameserver component = ComponentFactory.createNameserver(args[0], System.in, System.out);
+        component.run();
     }
 
     @Override
@@ -137,10 +143,5 @@ public class Nameserver implements INameserver {
         }
 
         throw new StopShellException();
-    }
-
-    public static void main(String[] args) throws Exception {
-        INameserver component = ComponentFactory.createNameserver(args[0], System.in, System.out);
-        component.run();
     }
 }

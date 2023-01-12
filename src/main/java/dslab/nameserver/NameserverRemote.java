@@ -4,7 +4,6 @@ import dslab.util.Config;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.io.Serializable;
 import java.net.Socket;
 import java.net.SocketException;
@@ -78,10 +77,9 @@ public class NameserverRemote implements INameserverRemote, Serializable {
                 try {
                     String mailboxAdrPort = NameserverStore.getInstance().getMailbox(domain);
                     String[] parts = mailboxAdrPort.split(":");
-                    Socket socket = new Socket(parts[0],Integer.parseInt(parts[1]));
+                    Socket socket = new Socket(parts[0], Integer.parseInt(parts[1]));
                     BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    if(!reader.readLine().equals("ok DMAP2.0"))
-                    {
+                    if (!reader.readLine().equals("ok DMAP2.0")) {
                         throw new SocketException();
                     }
                     socket.close();
