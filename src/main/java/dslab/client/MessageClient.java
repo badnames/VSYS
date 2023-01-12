@@ -69,6 +69,7 @@ public class MessageClient implements IMessageClient, Runnable {
 
     @Override
     public void run() {
+        connectDMAP();
         shell.run();
     }
 
@@ -485,7 +486,6 @@ public class MessageClient implements IMessageClient, Runnable {
 
             //starting secure encrypted connection
             startSecure(writer, reader);
-
             String toSend = "login " + config.getString("mailbox.user") + " " + config.getString("mailbox.password");
 
             //encrypting message
