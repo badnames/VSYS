@@ -16,6 +16,9 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.rmi.AccessException;
+import java.rmi.NotBoundException;
+import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -243,7 +246,7 @@ public class MailboxListener implements IListener {
                     .split(":");
 
             return new MailboxAddress(parsedAddress[0], Integer.parseInt(parsedAddress[1]));
-        } catch (Exception e) {
+        } catch (NotBoundException | RemoteException e) {
             return null;
         }
     }
